@@ -15,11 +15,12 @@ export class UI {
         <div class="chip emo" id="emo">🙂</div>
         <div class="grow"></div>
         <div class="speeds" id="speeds"><button data-s="0" title="Pausar (espaço)">⏸</button><button data-s="1">1×</button><button data-s="3">3×</button><button data-s="8">8×</button><button data-s="20">20×</button></div>
-        <label class="chip tgl" title="O personagem toma decisões sozinho"><input type="checkbox" id="auto"> 🤖 Autonomia</label>
-        <label class="chip tgl" title="Acelera sozinho durante ações longas"><input type="checkbox" id="accel" checked> ⏩ Auto-acelerar</label>
-        <button class="chip btn" id="mapBtn" title="Ver o bairro inteiro (M)">🗺️ Mapa</button>
+        <label class="chip tgl" title="O personagem toma decisões sozinho"><input type="checkbox" id="auto"> 🤖<span class="lbl"> Autonomia</span></label>
+        <label class="chip tgl" title="Acelera sozinho durante ações longas"><input type="checkbox" id="accel" checked> ⏩<span class="lbl"> Acelerar</span></label>
+        <button class="chip btn" id="mapBtn" title="Ver o bairro inteiro (M)">🗺️<span class="lbl"> Mapa</span></button>
         <button class="chip btn mobonly" id="statBtn">📊</button>
-        <button class="chip btn" id="phoneBtn">📱 Celular</button>
+        <button class="chip btn" id="phoneBtn" title="Celular (P)">📱<span class="lbl"> Celular</span></button>
+        <button class="chip btn" id="soundBtn" title="Som ambiente">🔊</button>
         <button class="chip btn" id="menuBtn">☰</button>
       </div>
       <div id="left" class="panel"></div>
@@ -40,9 +41,12 @@ export class UI {
     $('#menuBtn').addEventListener('click', () => this.systemMenu());
     $('#statBtn').addEventListener('click', () => { $('#left').classList.toggle('show'); });
     $('#mapBtn').addEventListener('click', () => sim.world.toggleMap());
+    $('#soundBtn').addEventListener('click', () => { if (!this.sound) return; const on = this.sound.toggle(); $('#soundBtn').textContent = on ? '🔊' : '🔇'; });
+    this.root.addEventListener('click', e => { if (e.target.closest('button') && e.target.id !== 'soundBtn') this.sound && this.sound.click(); });
     this.refreshTabs(); this.setSpeed(1);
     this.leftBuilt = false;
   }
+  setSound(s) { this.sound = s; $('#soundBtn').textContent = s.on ? '🔊' : '🔇'; }
   setSpeed(s) {
     const sim = this.sim;
     if (s === 0) sim.paused = !sim.paused; else { sim.paused = false; sim.speed = s; }
@@ -54,6 +58,7 @@ export class UI {
   // ---------- toasts & menus ----------
   toast(msg, cls = '') {
     const t = el('div', 'toast ' + cls, msg); $('#toasts').appendChild(t);
+    if (this.sound) { if (cls === 'good') this.sound.good(); else if (cls === 'warn' || cls === 'bad') this.sound.warn(); }
     while ($('#toasts').children.length > 5) $('#toasts').firstChild.remove();
     setTimeout(() => t.classList.add('out'), 4200); setTimeout(() => t.remove(), 4700);
   }
@@ -66,7 +71,7 @@ export class UI {
     for (const it of items) {
       const row = el('div', 'mi' + (it.reason ? ' dis' : ''));
       row.innerHTML = `<span class="ic">${it.icon}</span><span class="tx"><b>${it.label}</b><small>${it.reason ? '🚫 ' + it.reason : it.sub}</small></span>`;
-      if (!it.reason) row.addEventListener('click', () => it.fn());
+      if (!it.reason) row.addEventListener('click', () => { this.sound && this.sound.click(); it.fn(); });
       m.appendChild(row);
     }
     m.classList.remove('hidden');

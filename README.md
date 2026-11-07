@@ -27,7 +27,9 @@ Um simulador de vida em **3D com câmera ortográfica** (estilo The Sims, porém
 | **Outros NPCs** | Marcos (colega), Dona Lúcia (senhora), Seu Antônio, Camila e Rafa — cada um com horários, necessidades e emoções |
 | **Cidade** | O bairro São Francisco (São Luís/MA) **em escala real** — veja [Mapa](#mapa) |
 | **Eventos** | Vazamento, vizinho barulhento, mãe ligando, convite do Marcos, elogio do chefe, cobrança da senhoria... |
-| **Ciclo dia/noite** | Iluminação, sombras, janelas e postes que acendem |
+| **Ciclo dia/noite** | Iluminação com tone mapping, sombras, sombras de nuvens passando, brilho (bloom) à noite, janelas acesas e poças de luz dos postes |
+| **Ambientação** | Água animada com espuma na orla e faixa de areia, coqueiros na Av. Ferreira Gullar, praças com flores, casas coloridas com muro, portão e caixa d'água, carros circulando pelas ruas reais e faixas de pedestre |
+| **Som** | Som ambiente sintetizado no navegador (mar perto da orla, vento, trânsito, pássaros de dia, grilos à noite) e efeitos na interface. Liga e desliga em 🔊 |
 
 ## Mapa
 
@@ -64,7 +66,10 @@ js/ui.js            HUD, menus, lojas
 js/data.js          constantes e dados
 js/mapdata.js       mapa do bairro (gerado)
 tools/build_map.py  gerador do mapa
-vendor/             three.js
+vendor/             three.js (+ addons de pós-processamento)
+js/fx.js            efeitos: água, nuvens, texturas, areia/espuma
+js/traffic.js       carros nas ruas
+js/audio.js         som ambiente sintetizado
 ```
 
 ## Ideias para o futuro

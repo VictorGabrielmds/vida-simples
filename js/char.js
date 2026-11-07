@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { patch } from './fx.js';
 
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const matCache = new Map();
 export function mat(c, extra) {
   const k = c + (extra ? JSON.stringify(extra) : '');
-  if (!matCache.has(k)) matCache.set(k, new THREE.MeshLambertMaterial({ color: c, ...extra }));
+  if (!matCache.has(k)) matCache.set(k, patch(new THREE.MeshLambertMaterial({ color: c, ...extra })));
   return matCache.get(k);
 }
 

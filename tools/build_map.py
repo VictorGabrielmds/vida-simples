@@ -256,7 +256,7 @@ for r in roads:
             ok = land_in.contains(rect) and not hits_road(rect, 0.3) and not grid_hit(rect) and not any(occ_list[i].intersects(rect) for i in occupied.query(rect))
             if ok:
                 floors = random.choice([1, 1, 1, 2]) if not commercial else random.choice([1, 2, 2, 3, 4])
-                houses.append([round(cx, 2), round(cz, 2), round(f - 1, 2), round(d, 2), round(ang, 4), floors, random.randrange(8), 1 if commercial else 0])
+                houses.append([round(cx, 2), round(cz, 2), round(f - 1, 2), round(d, 2), round(ang, 4), floors, random.randrange(8), 1 if commercial else 0, round(setback, 2)])
                 grid.setdefault(gkey(cx, cz), []).append(rect.buffer(0.6))
             s += f
 print('casas geradas:', len(houses))

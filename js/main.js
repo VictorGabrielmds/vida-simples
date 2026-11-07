@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { World, APT } from './world.js';
 import { Sim } from './sim.js';
 import { UI } from './ui.js';
+import { Ambience } from './audio.js';
 
 const canvas = document.getElementById('c');
 const world = new World(canvas);
 const sim = new Sim(world);
 const ui = new UI(sim);
-window.game = { world, sim, ui, THREE };
+const sound = new Ambience();
+ui.setSound(sound);
+window.game = { world, sim, ui, THREE, sound };
 
 // ---------- tela inicial ----------
 const intro = document.getElementById('intro');
@@ -15,6 +18,7 @@ const hasSave = Sim.hasSave();
 if (hasSave) document.getElementById('btnContinue').classList.remove('hidden');
 let started = false;
 function start(cont) {
+  sound.ensure(); sound.click();
   if (cont && sim.load()) ui.toast('Jogo carregado 💾'); else { Sim.clearSave(); if (sim.s.day || sim.s.min !== 7 * 60) sim.newGame(); }
   sim.paused = false; ui.refreshSpeed();
   intro.classList.add('hidden'); started = true;
@@ -106,10 +110,15 @@ function frame(now) {
     if (mx || mz) { const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw); c.target.x += (mx * cy + mz * sy) * sp; c.target.z += (-mx * sy + mz * cy) * sp; c.follow = false; }
     sim.advance(dt);
   } else { sim.timeSec += dt; sim.render(dt); world.cam.yawT += dt * 0.08; world.cam.yaw = world.cam.yawT; }
-  const f = sim.player.visible ? sim.player : sim.player;
+  const running = !started || !(sim.paused || sim.modalOpen > 0);
+  world.tick(dt, running);
   world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: APT.ox + 9, z: APT.oz + 6 });
   world.render();
-  uiAcc += dt; if (uiAcc > 0.2) { uiAcc = 0; if (started) ui.update(); }
+  uiAcc += dt;
+  if (uiAcc > 0.2) {
+    uiAcc = 0; if (started) ui.update();
+    const c = world.cam.target; sound.update(world.day || 0, world.waterNear(c.x, c.z), Math.max(0, Math.min(1, 1 - (world.cam.zoom - 25) / 200)));
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
