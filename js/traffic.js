@@ -25,7 +25,7 @@ export class Traffic {
     for (let i = 0; i < n; i++) {
       const R = weighted[Math.floor(Math.random() * weighted.length)];
       const dir = R.o ? 1 : (Math.random() < 0.5 ? 1 : -1);
-      this.cars.push({ R, s: Math.random() * R.len, dir, v: MAIN.has(R.t) ? 11 + Math.random() * 5 : 6 + Math.random() * 3 });
+      this.cars.push({ R, s: Math.random() * R.len, dir, v: MAIN.has(R.t) ? 7 + Math.random() * 3 : 4 + Math.random() * 2 });
     }
     // malhas instanciadas
     const N = this.cars.length;
@@ -55,7 +55,7 @@ export class Traffic {
     const pool = pref.length && Math.random() < 0.7 ? pref : opts;
     const o = pool[Math.floor(Math.random() * pool.length)];
     car.R = o.R; car.dir = o.end === 0 ? 1 : -1; car.s = o.end === 0 ? 0.01 : o.R.len - 0.01;
-    car.v = MAIN.has(o.R.t) ? 11 + Math.random() * 5 : 6 + Math.random() * 3;
+    car.v = MAIN.has(o.R.t) ? 7 + Math.random() * 3 : 4 + Math.random() * 2;
   }
   update(dt, night = 0) {
     const { m4, q, e, v, sv } = this;

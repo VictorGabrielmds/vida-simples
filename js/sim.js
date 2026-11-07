@@ -529,7 +529,7 @@ export class Sim {
   // ====================== passagem do tempo ======================
   effSpeed() {
     let sp = this.speed;
-    if (this.autoAccel && this.cur && !this.player.moving && this.cur.def.mins >= 15 && !this.cur.def.wander) sp = Math.max(sp, 8);
+    if (this.autoAccel && this.cur && !this.player.moving && this.cur.def.mins >= 15 && !this.cur.def.wander) sp = Math.max(sp, 10);
     return sp;
   }
   advance(dtReal) {
@@ -538,10 +538,16 @@ export class Sim {
     // relógio: normal = MIN_PER_SEC min/s; andando = proporcional à distância (visual de 4 a 45 m/s)
     const p = this.player;
     let rate = MIN_PER_SEC;
-    if (p.visible && p.path.length && !(this.cur && this.cur.def.wander)) { const vis = Math.max(4, Math.min(45, p.remaining() / 3)); rate = vis / p.speed; }
+    if (p.visible && p.path.length && !(this.cur && this.cur.def.wander)) { const vis = Math.max(2.6, Math.min(18, p.remaining() / 5)); rate = vis / p.speed; }
     let dtMin = Math.min(dtReal * rate * this.effSpeed(), 25);
     this.player.update(dtMin);
-    for (const id in this.npcs) { const n = this.npcs[id]; n.walker.update(dtMin); if (n.dest && !n.walker.moving && !n.walker.path.length) this.npcArrive(n); }
+    // NPCs perto da câmera andam em ritmo natural (~3 m/s em 1x); longe seguem o relógio
+    const ct = this.world.cam.target, cap = dtReal * this.effSpeed() * 3.2;
+    for (const id in this.npcs) {
+      const n = this.npcs[id], w = n.walker, near = w.visible && Math.abs(w.x - ct.x) + Math.abs(w.z - ct.z) < 120;
+      w.update(dtMin, near ? cap : undefined);
+      if (n.dest && !w.moving && !w.path.length) this.npcArrive(n);
+    }
     this.processTasks();
     this.acc += dtMin;
     let guard = 0;

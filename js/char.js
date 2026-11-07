@@ -80,10 +80,10 @@ export function applyPose(c, pose, t) {
   const { rig, legL, legR, armL, armR, head } = c;
   rig.rotation.set(0, 0, 0); rig.position.set(0, 0, 0); head.rotation.set(0, 0, 0);
   legL.rotation.set(0, 0, 0); legR.rotation.set(0, 0, 0); armL.rotation.set(0, 0, 0.08); armR.rotation.set(0, 0, -0.08);
-  const s = Math.sin(t * 9) * 0.7;
+  const s = Math.sin(t * 7) * 0.7;
   let closed = ((t + c.blinkOff) % 3.7) < 0.13;
   switch (pose) {
-    case 'walk': legL.rotation.x = s; legR.rotation.x = -s; armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8; rig.position.y = Math.abs(Math.sin(t * 9)) * 0.045; head.rotation.z = Math.sin(t * 4.5) * 0.04; break;
+    case 'walk': legL.rotation.x = s; legR.rotation.x = -s; armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8; rig.position.y = Math.abs(Math.sin(t * 7)) * 0.045; head.rotation.z = Math.sin(t * 4.5) * 0.04; break;
     case 'run': { const r = Math.sin(t * 14) * 1.0; legL.rotation.x = r; legR.rotation.x = -r; armL.rotation.x = -r; armR.rotation.x = r; rig.position.y = Math.abs(Math.sin(t * 14)) * 0.09; break; }
     case 'sit': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.2; armL.rotation.x = armR.rotation.x = -0.5; break;
     case 'tv': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.2; armL.rotation.x = armR.rotation.x = -0.3; head.rotation.z = Math.sin(t * 0.7) * 0.05; break;
@@ -152,9 +152,9 @@ export class Walker {
   stop() { this.path = []; this.moving = false; }
   remaining() { let d = 0, px = this.x, pz = this.z; for (const [x, z] of this.path) { d += Math.hypot(x - px, z - pz); px = x; pz = z; } return d; }
   face(tx, tz) { this.rot = Math.atan2(tx - this.x, tz - this.z); }
-  update(dtMin) {
+  update(dtMin, maxStep) {
     if (this.seated) { this.moving = false; return; }
-    let d = this.speed * dtMin;
+    let d = this.speed * dtMin; if (maxStep !== undefined) d = Math.min(d, maxStep);
     this.moving = this.path.length > 0;
     while (d > 0 && this.path.length) {
       const [px, pz] = this.path[0], dx = px - this.x, dz = pz - this.z, dist = Math.hypot(dx, dz);

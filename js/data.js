@@ -1,5 +1,5 @@
 // Dados e constantes do jogo "Vida Simples"
-export const MIN_PER_SEC = 2; // minutos de jogo por segundo real (velocidade 1x)
+export const MIN_PER_SEC = 1; // minutos de jogo por segundo real (velocidade 1x): um dia = 24 min reais
 export const MONTHS = ['Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro', 'Janeiro', 'Fevereiro'];
 export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 

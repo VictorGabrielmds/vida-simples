@@ -60,7 +60,7 @@ O mundo é o bairro **São Francisco, São Luís/MA**, em **escala real: 1 unida
 - Ruas, avenidas, ponte, linha da costa, praças e prédios vêm do **OpenStreetMap**: 327 vias, cerca de 63 km de ruas com largura e calçada por tipo de via e nomes reais escritos no asfalto.
 - Cerca de 4.600 casas foram distribuídas em lotes ao longo das ruas, voltadas para a calçada, e há cerca de 7.700 árvores e 1.600 postes.
 - **Locais do jogo** (posicionados pelos marcadores do mapa de referência): casa alugada, Escritório, Fábrica de Salgados, casa da Júlia, casa da Dona Lúcia, Supermercado, Academia, Bar do Zé e a Praça Pôr do Sol.
-- Andar custa tempo real de jogo (~75 m por minuto). Na tela, trajetos longos são acelerados. Use **M** (ou 🗺️ Mapa) para ver o bairro inteiro de cima.
+- Andar custa tempo real de jogo (~75 m por minuto). Na tela, ele anda a ~2,6 m/s em trajetos curtos e acelera até ~18 m/s nos longos. Em 1×, um dia de jogo dura 24 minutos reais. Use **M** (ou 🗺️ Mapa) para ver o bairro inteiro de cima.
 
 O mapa é gerado por `tools/build_map.py` (Python com shapely, OpenCV e Pillow) a partir de um export do OSM e do alinhamento com a imagem de referência. O resultado fica em `js/mapdata.js`.
 
