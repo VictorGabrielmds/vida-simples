@@ -106,7 +106,7 @@ function frame(now) {
     sim.advance(dt);
   } else { sim.timeSec += dt; sim.render(dt); world.cam.yawT += dt * 0.08; world.cam.yaw = world.cam.yawT; }
   const f = sim.player.visible ? sim.player : sim.player;
-  world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: 14, z: 14 });
+  world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: 22, z: 23 });
   world.render();
   uiAcc += dt; if (uiAcc > 0.2) { uiAcc = 0; if (started) ui.update(); }
   requestAnimationFrame(frame);

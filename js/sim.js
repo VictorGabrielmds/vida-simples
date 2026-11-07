@@ -2,9 +2,9 @@ import { NEEDS, ITEMS, ITEM_QTY, FURNITURE, MONTHS, WEEKDAYS, WANTS, NPC_DEFS, M
 import { Walker, setShirt, makeBubble } from './char.js';
 import { APT } from './world.js';
 
-const SAVE_KEY = 'vida-simples-save-v1';
-const EDGE_L = [0, 19], EDGE_R = [63, 19];
-const WANDER = { park: [49, 29, 61, 40], street: [2, 18, 60, 21], lucia: [14, 18, 25, 21], rafa: [2, 24, 60, 27] };
+const SAVE_KEY = 'vida-simples-save-v2';
+const EDGE_L = [12, 30], EDGE_R = [74, 54];
+const WANDER = { park: [13, 34, 21, 40], street: [13, 29, 31, 31], lucia: [14, 29, 30, 31], rafa: [14, 44, 58, 45] };
 const RENT = 1300;
 
 export function newState() {
@@ -14,6 +14,7 @@ export function newState() {
     moodlets: [], inv: { mantimentos: 3, lanche: 1, agua: 2, refri: 0, chocolate: 0, kit: 4, limpeza: 2, flores: 0, marmita: 0 },
     owned: {}, skills: { culinaria: 5, forma: 10, carreira: 10 },
     job: { employed: true, wage: 160, level: 1, perfRecent: 0.6, pending: 0, workedToday: false, absences: 0, warnings: 0, lastRaise: -30, workMin: 0, perfAcc: 0 },
+    job2: { wage: 140, workedToday: false, workMin: 0, perfAcc: 0, perfRecent: 0.6 },
     bills: { rentDue: false, rentLate: 0, rentAmt: RENT, utilDue: false, utilLate: 0, utilAmt: 240 },
     wants: [], wantsDone: 0, deliveries: [], flags: { broke: false, annivDone: false, lowRelDays: 0, lastEvent: -999, jobHuntDays: 0 },
     log: [], npcs: {}, over: null,
@@ -231,6 +232,11 @@ export class Sim {
         A.push(mk('work', 'Trabalhar até as 18h', '💼', Math.max(30, 18 * 60 - s.min), { inside: 'office', rate: { calma: -0.07, fome: 0.07, sede: 0.08, banheiro: 0.12 }, req: () => !s.job.employed ? 'Você está desempregado' : !this.isWorkday ? 'Hoje não é dia útil' : s.job.workedToday ? 'Você já trabalhou hoje' : (h < 7 || h >= 17) ? 'Fora do expediente (7h–17h)' : null, onStart: () => { this.cur.left = this.cur.total = Math.max(30, 18 * 60 - s.min); s.job.workMin = 0; s.job.perfAcc = 0; s.job.late = s.min > 9 * 60 + 15; if (s.job.late) { this.toast('⏰ Você chegou atrasado...'); this.addMoodlet('late', 'Chegou atrasado', -6, 6); } }, tick: () => { s.job.workMin++; const nn = s.needs, p = 0.45 + this.moodVal / 250 + nn.energia / 400 - ((nn.fome < 15 || nn.sede < 15) ? 0.2 : 0) + s.skills.carreira / 400; s.job.perfAcc += p; }, onEnd: c => this.endWork(c), trig: 'work' }));
         if (this.pres('office').has('marcos')) A.push(mk('talk_m', 'Bater papo com o Marcos', '☕', 25, { inside: 'office', partner: 'marcos', hidden: true, fx: { social: 16, diversao: 6, calma: 3 }, req: open(o.hours, 'Escritório'), trig: 'marcos', onFinish: () => this.social('marcos', 'talk') }));
         A.push(mk('raise', 'Pedir aumento ao chefe', '💰', 20, { inside: 'office', req: () => !s.job.employed ? 'Você está desempregado' : !this.isWorkday || !this.isOpen(o.hours) ? 'Chefe não está' : (this.s.day - s.job.lastRaise < 30) ? 'Peça apenas 1 vez por mês' : s.skills.carreira < 25 * s.job.level ? `Carreira insuficiente (${Math.floor(s.skills.carreira)}/${25 * s.job.level})` : null, onFinish: () => this.askRaise() }));
+        break;
+      }
+      case 'fabrica': {
+        const h = this.hour, j2 = s.job2;
+        A.push(mk('work2', 'Fazer salgados (sáb/dom, até 16h)', '🥟', 480, { inside: 'fabrica', rate: { calma: -0.05, fome: 0.07, sede: 0.08, banheiro: 0.12 }, req: () => this.isWorkday ? 'A fábrica só abre aos sábados e domingos' : j2.workedToday ? 'Você já trabalhou hoje' : (h < 7 || h >= 14) ? 'Turno das 8h às 16h (chegue até 14h)' : null, onStart: () => { this.cur.left = this.cur.total = Math.max(30, 16 * 60 - s.min); j2.workMin = 0; j2.perfAcc = 0; }, tick: () => { j2.workMin++; const nn = s.needs; j2.perfAcc += 0.45 + this.moodVal / 250 + nn.energia / 400 - ((nn.fome < 15 || nn.sede < 15) ? 0.2 : 0); }, onEnd: c => this.endWork(c, 'job2'), trig: 'work' }));
         break;
       }
       case 'julia_home': {
@@ -488,9 +494,16 @@ export class Sim {
     if (Math.random() < p) { s.job.wage = Math.round(s.job.wage * 1.12); s.job.level++; this.toast(`🎉 Aumento aprovado! Diária agora ${fmt(s.job.wage)}`, 'good'); this.addMoodlet('raise', 'Aumento!', 14, 24); }
     else { this.toast('O chefe disse que ainda não é o momento...', 'warn'); this.addMoodlet('noraise', 'Aumento negado', -6, 8); }
   }
-  endWork(cancelled) {
-    const j = this.s.job; if (j.workMin < 1) return;
+  endWork(cancelled, key = 'job') {
+    const j = this.s[key]; if (j.workMin < 1) return;
     const avg = j.perfAcc / Math.max(1, j.workMin); j.perfRecent = avg;
+    if (key === 'job2') {
+      if (j.workMin >= 240 || !cancelled) {
+        const pay = Math.round(j.wage * clamp(0.85 + avg * 0.4, 0.8, 1.2) * clamp(j.workMin / 480, 0.4, 1)); this.s.job.pending += pay; j.workedToday = true; this.s.skills.culinaria += 0.8;
+        this.toast(`🥟 Turno na fábrica concluído: +${fmt(pay)} a receber no dia 5`);
+      } else this.toast('Você saiu mais cedo da fábrica e não recebeu pelo dia.', 'warn');
+      return;
+    }
     if (j.workMin >= 240 || !cancelled) {
       const mult = clamp(0.85 + avg * 0.4, 0.8, 1.2) * (j.late ? 0.8 : 1) * clamp(j.workMin / 540, 0.4, 1);
       const pay = Math.round(j.wage * mult); j.pending += pay; j.workedToday = true;
@@ -583,7 +596,7 @@ export class Sim {
   }
   newDay() {
     const s = this.s, d = this.date;
-    s.job.workedToday = false; s.flags.annivDone = false;
+    s.job.workedToday = false; s.job2.workedToday = false; s.flags.annivDone = false;
     for (const id in this.npcs) { this.npcs[id].barDay = Math.random() < 0.45; }
     if (d === 1) { s.job.absences = 0; s.job.warnings = Math.max(0, s.job.warnings - 1); }
     if (d === 5) { if (s.job.pending > 0) { s.money += s.job.pending; this.toast(`💵 Salário recebido: ${fmt(s.job.pending)}`, 'good'); s.job.pending = 0; this.addMoodlet('pay', 'Dia de pagamento', 8, 24); } }
@@ -705,6 +718,7 @@ export class Sim {
   autoDecide() {
     const s = this.s, n = s.needs, h = this.hour, go = id => { const r = this.findAct(id); if (r) { this.perform(r.t, r.a); return true; } return false; };
     if (s.job.employed && this.isWorkday && !s.job.workedToday && h >= 7.9 && h < 15 && n.energia > 20 && n.fome > 12 && go('work')) return;
+    if (!this.isWorkday && !s.job2.workedToday && h >= 7.2 && h < 12 && n.energia > 35 && n.fome > 20 && go('work2')) return;
     if (!s.job.employed && h > 9 && h < 19 && n.energia > 30 && go('jobhunt')) return;
     if (n.banheiro < 25 && go('wc')) return;
     if (n.fome < 40) { if (go('cook') || go('marmita') || go('lanche')) return; if (!this.cur && this.isOpen([7, 22]) && s.money >= 30 && go('shop')) { return; } }
@@ -736,7 +750,7 @@ export class Sim {
   load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY); if (!raw) return false;
-      const d = JSON.parse(raw); this.s = { ...newState(), ...d.s, job: { ...newState().job, ...d.s.job }, bills: { ...newState().bills, ...d.s.bills }, flags: { ...newState().flags, ...d.s.flags }, inv: { ...newState().inv, ...d.s.inv }, needs: { ...newState().needs, ...d.s.needs } };
+      const d = JSON.parse(raw); this.s = { ...newState(), ...d.s, job: { ...newState().job, ...d.s.job }, job2: { ...newState().job2, ...d.s.job2 }, bills: { ...newState().bills, ...d.s.bills }, flags: { ...newState().flags, ...d.s.flags }, inv: { ...newState().inv, ...d.s.inv }, needs: { ...newState().needs, ...d.s.needs } };
       this.tasks = []; this.cur = null; this.insideId = null; this.present = {};
       this.player.visible = true; this.player.setPos(d.p.x + 0.5, d.p.z + 0.5);
       if (!this.world.nav.ok(d.p.x, d.p.z)) { const f = this.world.nav.nearestFree(d.p.x, d.p.z); this.player.setPos(f[0] + 0.5, f[1] + 0.5); }

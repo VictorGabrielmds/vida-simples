@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { Nav } from './nav.js';
 import { mat, makeLabel } from './char.js';
 
-export const W = 64, H = 42;
-export const APT = { ox: 4, oz: 6, w: 18, d: 12 };
+export const W = 76, H = 78;
+export const APT = { ox: 13, oz: 17, w: 18, d: 12 };
 const APT_MAP = [
   '##################',
   '#......#.........#',
@@ -77,48 +77,65 @@ export class World {
 
   // ---------- construção ----------
   build() {
-    const S = this.scene, P = this.P.bind(this), r = rng(7);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), mat('#8cc17e')); ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true; S.add(ground);
-    this.groundMesh = ground;
-    // calçadas e ruas
-    P(S, W, 0.06, 4, '#cfcdc6', 0, 0, 18, { noShadow: true }); P(S, W, 0.06, 4, '#cfcdc6', 0, 0, 24, { noShadow: true });
-    P(S, 2, 0.06, H, '#cfcdc6', 26, 0, 0, { noShadow: true }); P(S, 2, 0.06, H, '#cfcdc6', 30, 0, 0, { noShadow: true });
-    P(S, W, 0.07, 2, '#4b4f57', 0, 0, 22, { noShadow: true }); P(S, 2, 0.07, H, '#4b4f57', 28, 0, 0, { noShadow: true });
-    for (let x = 1; x < W; x += 4) if (x < 27 || x > 31) P(S, 1.6, 0.08, 0.14, '#e8e4c8', x, 0, 22.93, { noShadow: true });
-    for (let z = 1; z < H; z += 4) if (z < 21 || z > 25) P(S, 0.14, 0.08, 1.6, '#e8e4c8', 28.93, 0, z, { noShadow: true });
-    for (let i = 0; i < 6; i++) { P(S, 0.5, 0.085, 2, '#f0f0f0', 28.2 + i * 0.33, 0, 20.5, { noShadow: true }); }
-    // apartamento
+    const S = this.scene, P = this.P.bind(this), r = rng(7), N = this.nav, px = v => v / 9;
+    this.landMask = new Uint8Array(W * H); this.roadMask = new Uint8Array(W * H);
+    // água e terra (península inspirada no bairro São Francisco, São Luís/MA)
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat('#7cc7e8')); water.rotation.x = -Math.PI / 2; water.position.set(W / 2, -0.14, H / 2); water.receiveShadow = true; S.add(water);
+    const poly = [[70, 150], [120, 75], [235, 10], [330, 12], [430, 50], [520, 45], [600, 10], [800, 0], [800, 720], [285, 720], [270, 655], [200, 590], [130, 510], [95, 420], [82, 300], [72, 215]].map(([x, y]) => [px(x), px(y)]);
+    const mkLand = (scale, color, y) => {
+      const sh = new THREE.Shape(), cx = W / 2, cz = H / 2;
+      poly.forEach(([x, z], i) => { const X = cx + (x - cx) * scale, Z = cz + (z - cz) * scale; if (i) sh.lineTo(X, Z); else sh.moveTo(X, Z); });
+      const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.14, bevelEnabled: false }), mat(color)); m.rotation.x = Math.PI / 2; m.position.y = y; m.receiveShadow = true; S.add(m);
+    };
+    mkLand(1.05, '#ead9a4', -0.02); mkLand(1, '#8cc17e', 0);
+    const inPoly = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (inPoly(x + 0.5, z + 0.5)) this.landMask[z * W + x] = 1;
+    // ruas
+    const road = (pts, w, h = 0.075, color = '#4b4f57') => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const x1 = px(pts[i][0]), z1 = px(pts[i][1]), x2 = px(pts[i + 1][0]), z2 = px(pts[i + 1][1]);
+        const L = Math.hypot(x2 - x1, z2 - z1), ang = Math.atan2(z2 - z1, x2 - x1);
+        const add = (ww, hh, c) => { const m = new THREE.Mesh(unit, mat(c)); m.scale.set(L + 0.01, hh, ww); m.position.set((x1 + x2) / 2, hh / 2, (z1 + z2) / 2); m.rotation.y = -ang; m.receiveShadow = true; S.add(m); };
+        add(w + 1.8, 0.06, '#cfcdc6'); add(w, h, color);
+        const steps = Math.ceil(L * 2);
+        for (let k = 0; k <= steps; k++) { const t = k / steps, x = x1 + (x2 - x1) * t, z = z1 + (z2 - z1) * t; for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) if (Math.hypot(dx, dz) <= w / 2 + 1.4) { const cx = Math.floor(x + dx), cz = Math.floor(z + dz); if (cx >= 0 && cz >= 0 && cx < W && cz < H) this.roadMask[cz * W + cx] = 1; } }
+      }
+    };
+    road([[240, 0], [290, 150], [312, 260], [312, 420], [300, 720]], 3.2, 0.082, '#3f4c60');
+    road([[318, 268], [480, 215], [685, 150], [800, 110]], 3, 0.082, '#3f4c60');
+    road([[100, 112], [100, 250], [104, 400], [150, 520], [230, 600], [300, 628], [420, 608], [540, 590], [700, 590]], 2);
+    [[[100, 262], [300, 262]], [[100, 128], [280, 128]], [[100, 395], [525, 395]], [[110, 437], [310, 437]], [[115, 485], [760, 485]], [[330, 300], [525, 300]], [[330, 350], [525, 350]],
+      [[125, 395], [125, 540]], [[165, 395], [165, 540]], [[200, 395], [200, 540]], [[235, 395], [235, 540]], [[270, 395], [270, 540]], [[370, 300], [370, 540]], [[440, 300], [440, 540]], [[510, 300], [510, 540]], [[580, 350], [580, 540]]]
+      .forEach(p => road(p, 1.8));
+    // apartamento (casa alugada)
     this.buildApartment();
-    // prédios
-    this.addBuilding('bar', 'Bar do Zé', { x: 34, z: 8, w: 10, d: 9, h: 3.4, wall: '#d9a35f', roof: '#7a3b2e', face: 's', door: 38, icon: '🍺', hours: [11, 24] });
-    this.addBuilding('julia_home', 'Casa da Júlia', { x: 47, z: 9, w: 10, d: 8, h: 3.0, wall: '#f2b5c4', roof: '#a8465e', face: 's', door: 51, icon: '💕', hours: [0, 24] });
-    this.addBuilding('lucia_home', 'Casa da Dona Lúcia', { x: 22, z: 11, w: 4, d: 6, h: 2.8, wall: '#c9d6a3', roof: '#6b7f3a', face: 's', door: 23, icon: '🏡', hours: [0, 24] });
-    this.addBuilding('market', 'Mercadinho', { x: 4, z: 29, w: 12, d: 9, h: 3.4, wall: '#a8d0e6', roof: '#2e6f95', face: 'n', door: 9, icon: '🛒', hours: [7, 22] });
-    this.addBuilding('gym', 'Academia', { x: 18, z: 29, w: 8, d: 9, h: 3.6, wall: '#c7b8e6', roof: '#5b3f9a', face: 'n', door: 21, icon: '🏋️', hours: [6, 23] });
-    this.addBuilding('office', 'Escritório', { x: 34, z: 29, w: 12, d: 10, h: 7, wall: '#b9c4d0', roof: '#4a5568', face: 'n', door: 39, icon: '💼', hours: [7, 19] });
-    // decorativos ao norte
-    const decor = [[4, 1, 8, 5], [14, 1, 7, 4], [33, 1, 9, 6], [44, 0, 8, 5], [54, 1, 8, 5]];
-    const cols = ['#e3c6a0', '#b6c9d9', '#d9b3b3', '#c1d8b3', '#e0d3a2'];
-    decor.forEach(([x, z, w, d], i) => {
-      const g = new THREE.Group(); S.add(g);
-      P(g, w, 3 + (i % 3) * 1.5, d, cols[i], x, 0, z); P(g, w + 0.3, 0.2, d + 0.3, '#7b7f87', x - 0.15, 3 + (i % 3) * 1.5, z - 0.15);
-      this.nav.block(x, z, w, d);
-      for (let k = 0; k < w - 1; k += 2) P(g, 0.9, 0.9, 0.06, null, x + 0.6 + k, 1.4, z + d, { material: this.winMat, noShadow: true });
-    });
+    for (let z = APT.oz - 1; z <= APT.oz + APT.d + 1; z++) for (let x = APT.ox - 1; x <= APT.ox + APT.w; x++) this.roadMask[z * W + x] = 1; // área reservada
+    // locais (posições a partir do mapa)
+    this.addBuilding('julia_home', 'Casa da Júlia', { x: 14, z: 5, w: 7, d: 6, h: 3.0, wall: '#f2b5c4', roof: '#a8465e', face: 's', door: 17, icon: '💕', hours: [0, 24] });
+    this.addBuilding('lucia_home', 'Casa da Dona Lúcia', { x: 25, z: 9, w: 6, d: 6, h: 2.8, wall: '#c9d6a3', roof: '#6b7f3a', face: 's', door: 27, icon: '🏡', hours: [0, 24] });
+    this.addBuilding('office', 'Escritório', { x: 25, z: 36, w: 8, d: 7, h: 7, wall: '#9fb4d9', roof: '#3a4a6a', face: 's', door: 28, icon: '💼', hours: [7, 19] });
+    this.addBuilding('fabrica', 'Fábrica de Salgados', { x: 19, z: 49, w: 8, d: 5, h: 3.4, wall: '#e8c07a', roof: '#a4572a', face: 'n', door: 22, icon: '🥟', hours: [7, 17] });
+    this.addBuilding('market', 'Mercado', { x: 42, z: 24, w: 10, d: 7, h: 3.4, wall: '#a8d0e6', roof: '#2e6f95', face: 's', door: 46, icon: '🛒', hours: [7, 22] });
+    this.addBuilding('gym', 'Academia', { x: 40, z: 39, w: 8, d: 4, h: 3.6, wall: '#c7b8e6', roof: '#5b3f9a', face: 's', door: 43, icon: '🏋️', hours: [6, 23] });
+    this.addBuilding('bar', 'Bar do Zé', { x: 56, z: 34, w: 9, d: 4, h: 3.4, wall: '#d9a35f', roof: '#7a3b2e', face: 's', door: 60, icon: '🍺', hours: [11, 24] });
     this.buildPark();
-    // árvores
-    const trees = [[2, 3], [24, 3], [20, 4], [25, 8], [31, 5], [46, 14], [58, 14], [60, 6], [2, 14], [22, 1], [26, 15], [32, 17], [45, 18.2], [1, 29], [1, 36], [17, 38], [28, 39], [31, 33], [46, 38], [3, 40], [10, 40], [20, 40], [62, 20]];
-    trees.forEach(([x, z]) => this.tree(Math.floor(x), Math.floor(z), r));
-    // postes
-    for (let x = 3; x < W; x += 10) if (x < 26 || x > 31) { this.lamp(x, 21); this.lamp(x + 5, 24); }
-    // carros estacionados
-    [[8, 22, '#c0392b'], [40, 23, '#2c7be5'], [14, 23, '#f1c40f']].forEach(([x, z, c]) => {
-      const g = new THREE.Group(); S.add(g);
-      P(g, 2.2, 0.55, 1, c, x, 0.12, z); P(g, 1.2, 0.45, 0.9, c, x + 0.5, 0.67, z + 0.05); P(g, 1.0, 0.3, 0.92, '#9fd3ee', x + 0.6, 0.72, z + 0.04);
-      [[0.3, 0], [1.6, 0]].forEach(([dx]) => { P(g, 0.4, 0.4, 1.05, '#222', x + dx, 0.0, z - 0.02); });
-    });
-    // bairro: muros leves ao redor da casa da Lúcia / jardim
-    this.nav.block(0, 0, 0, 0);
+    // bloqueia a água
+    for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) if (!this.landMask[z * W + x]) N.block(x, z);
+    // casas do bairro e árvores
+    const free = (x, z, w, d, m) => { for (let i = x - m; i < x + w + m; i++) for (let j = z - m; j < z + d + m; j++) { if (i < 0 || j < 0 || i >= W || j >= H) return false; const k = j * W + i; if (!this.landMask[k] || this.roadMask[k] || N.blocked[k]) return false; } return true; };
+    const hc = ['#e9c9a0', '#c9d8e8', '#e8b9b0', '#cfe3bd', '#f0dca0', '#d7c3e6'], rc = ['#a5523a', '#7a4a3a', '#8a6a4a', '#5a6a7a'];
+    for (let z = 2; z < H - 5; z++) for (let x = 2; x < W - 6; x++) {
+      if (r() > 0.04) continue;
+      const w = 4 + Math.floor(r() * 3), d = 4 + Math.floor(r() * 2);
+      if (!free(x, z, w, d, 1)) continue;
+      const g = new THREE.Group(); S.add(g); const hh = 2 + r() * 1.2;
+      P(g, w, hh, d, hc[Math.floor(r() * hc.length)], x, 0, z); P(g, w + 0.4, 0.25, d + 0.4, rc[Math.floor(r() * rc.length)], x - 0.2, hh, z - 0.2);
+      for (let k = 0; k < w - 1; k += 2) P(g, 0.8, 0.8, 0.06, null, x + 0.6 + k, 1, z + d, { material: this.winMat, noShadow: true });
+      N.block(x, z, w, d);
+    }
+    for (let z = 1; z < H - 1; z++) for (let x = 1; x < W - 1; x++) if (r() < 0.025 && free(x, z, 1, 1, 0)) this.tree(x, z, r);
+    // postes junto às portas
+    Object.values(this.objs).filter(o => o.kind === 'building').forEach(o => { const lx = o.approach[0] + 2, lz = o.approach[1]; if (N.ok(lx, lz)) this.lamp(lx, lz); });
   }
 
   tree(x, z, r) {
@@ -153,14 +170,14 @@ export class World {
   buildPark() {
     const S = this.scene, P = this.P.bind(this);
     const g = new THREE.Group(); S.add(g);
-    P(g, 15, 0.05, 13, '#79c26f', 48, 0, 28.5, { noShadow: true });
-    P(g, 15, 0.06, 1.2, '#e7dcc0', 48, 0, 33.5, { noShadow: true }); P(g, 1.2, 0.06, 13, '#e7dcc0', 53, 0, 28.5, { noShadow: true });
-    const pond = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 2.7, 0.08, 20), mat('#5aa9d6')); pond.position.set(58, 0.05, 36); pond.receiveShadow = true; g.add(pond);
-    for (let x = 54; x < 63; x++) for (let z = 32; z < 41; z++) if (Math.hypot(x + 0.5 - 58, z + 0.5 - 36) < 2.9) this.nav.block(x, z);
-    this.register({ id: 'park', name: 'Parque Central', type: 'park', kind: 'zone', approach: [50, 31], icon: '🌳', rect: [49, 29, 61, 40] }, g);
-    [[49, 29], [61, 29], [49, 39], [51, 36], [60, 31], [61, 40]].forEach(([x, z]) => this.tree(x, z, rng(x * z)));
-    const label = makeLabel('🌳 Parque', { size: 30, scale: 0.0105 }); label.position.set(55, 3.2, 30); S.add(label);
-    [{ id: 'bench1', x: 51, z: 31, name: 'Banco do parque' }, { id: 'bench2', x: 55, z: 38, name: 'Banco do parque' }].forEach(b => {
+    P(g, 9, 0.05, 8, '#79c26f', 13, 0, 33.5, { noShadow: true });
+    P(g, 9, 0.06, 1.1, '#e7dcc0', 13, 0, 36.5, { noShadow: true }); P(g, 1.1, 0.06, 8, '#e7dcc0', 17, 0, 33.5, { noShadow: true });
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.08, 20), mat('#5aa9d6')); pond.position.set(20, 0.05, 38.8); pond.receiveShadow = true; g.add(pond);
+    for (let x = 17; x < 24; x++) for (let z = 36; z < 42; z++) if (Math.hypot(x + 0.5 - 20, z + 0.5 - 38.8) < 1.9) this.nav.block(x, z);
+    this.register({ id: 'park', name: 'Praça Pôr do Sol', type: 'park', kind: 'zone', approach: [17, 35], icon: '🌳', rect: [13, 34, 21, 40] }, g);
+    [[13, 34], [21, 34], [13, 41], [21, 41]].forEach(([x, z]) => this.tree(x, z, rng(x * z)));
+    const label = makeLabel('🌳 Praça Pôr do Sol', { size: 30, scale: 0.0105 }); label.position.set(17.5, 3.2, 34); S.add(label);
+    [{ id: 'bench1', x: 14, z: 35, name: 'Banco da praça' }, { id: 'bench2', x: 18, z: 40, name: 'Banco da praça' }].forEach(b => {
       const bg = new THREE.Group(); S.add(bg);
       P(bg, 2, 0.1, 0.6, '#9a6b3f', b.x, 0.45, b.z + 0.25); P(bg, 2, 0.5, 0.1, '#9a6b3f', b.x, 0.6, b.z + 0.2); P(bg, 0.1, 0.45, 0.5, '#444', b.x + 0.1, 0, b.z + 0.3); P(bg, 0.1, 0.45, 0.5, '#444', b.x + 1.8, 0, b.z + 0.3);
       this.nav.block(b.x, b.z, 2, 1);

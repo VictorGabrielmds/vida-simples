@@ -21,11 +21,11 @@ Um simulador de vida em **3D com câmera ortográfica** (estilo The Sims, porém
 | **Emoções** | Derivadas das necessidades + *moodlets* (fatos recentes): feliz, estressado, triste, irritado, ansioso, entediado, solitário, apaixonado, exausto... |
 | **Desejos** | Objetivos que aparecem e dão bônus de humor ao serem cumpridos |
 | **Casa de aluguel** | Quarto, banheiro e sala/cozinha mobiliados; sujeira visível; compre móveis no PC (videogame, estante, planta, tapete) |
-| **Trabalho** | Seg–Sex, chegar 7h–17h, expediente até 18h; desempenho depende do humor/energia; advertências, faltas, demissão, pedido de aumento, busca de emprego |
+| **Trabalho** | Fábrica de Salgados nos fins de semana (sáb/dom, 8h–16h) como 2º emprego. No Escritório: Seg–Sex, chegar 7h–17h, expediente até 18h; desempenho depende do humor/energia; advertências, faltas, demissão, pedido de aumento, busca de emprego |
 | **Dinheiro** | Salário no dia 5 • aluguel dia 10 (multa e despejo se atrasar) • contas de luz/água/internet dia 15 (corte de luz!) |
 | **Namorada** | Júlia tem rotina, humor e relação própria: conversar, elogiar, abraçar, beijar, presentear, jantares, passeios, filme em casa. **Mêsversário no dia 20** 💞. Se for negligenciada, ela termina o namoro |
 | **Outros NPCs** | Marcos (colega), Dona Lúcia (senhora), Seu Antônio, Camila e Rafa — cada um com horários, necessidades e emoções |
-| **Cidade** | Apartamento, Mercadinho, Academia, Bar do Zé, Escritório, Parque, casa da Júlia e da Dona Lúcia |
+| **Cidade** | Mapa inspirado no bairro São Francisco (São Luís/MA): península com praia, avenida principal, ruas em grade, casa alugada, Escritório, Fábrica de Salgados, casa da Júlia, Mercado, Academia, Bar do Zé e a Praça Pôr do Sol |
 | **Eventos** | Vazamento, vizinho barulhento, mãe ligando, convite do Marcos, elogio do chefe, cobrança da senhoria... |
 | **Ciclo dia/noite** | Iluminação, sombras, janelas e postes que acendem |
 

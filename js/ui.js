@@ -78,7 +78,7 @@ export class UI {
     if (def.rate) for (const k in def.rate) add(k, def.rate[k] * Math.min(def.mins, 480));
     if (def.cost) parts.unshift(`💰-${def.cost}`);
     const mins = def.sleep ? 'até acordar' : def.mins >= 60 ? `${(def.mins / 60).toFixed(def.mins % 60 ? 1 : 0)}h` : `${def.mins}min`;
-    return `${def.id === 'work' ? 'até 18h' : mins} · ${parts.join(' ')}`;
+    return `${def.id === 'work' ? 'até 18h' : def.id === 'work2' ? 'até 16h' : mins} · ${parts.join(' ')}`;
   }
   openFor(target, x, y) {
     const sim = this.sim; let title, sub = '';
@@ -217,6 +217,7 @@ export class UI {
       const sk = s.skills, j = s.job, b = s.bills;
       html = `<div class="kv"><h4>💼 Trabalho</h4>
         <p>${j.employed ? `Escritório • diária <b>${fmt(j.wage)}</b> • nível ${j.level}` : '<b class="neg">Desempregado</b> (procure vagas no computador)'}</p>
+        <p>🥟 Fábrica de salgados (sáb/dom): diária <b>${fmt(s.job2.wage)}</b></p>
         <p>A receber no dia 5: <b>${fmt(j.pending)}</b></p><p>Advertências: <b>${j.warnings}/3</b> • Faltas no mês: <b>${j.absences}/3</b></p>
         <h4>📈 Habilidades</h4>
         <p>🍳 Culinária <b>${Math.floor(sk.culinaria)}</b> • 💪 Forma física <b>${Math.floor(sk.forma)}</b> • 📊 Carreira <b>${Math.floor(sk.carreira)}</b></p>
