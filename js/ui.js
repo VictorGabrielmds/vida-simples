@@ -17,6 +17,7 @@ export class UI {
         <div class="speeds" id="speeds"><button data-s="0" title="Pausar (espaço)">⏸</button><button data-s="1">1×</button><button data-s="3">3×</button><button data-s="8">8×</button><button data-s="20">20×</button></div>
         <label class="chip tgl" title="O personagem toma decisões sozinho"><input type="checkbox" id="auto"> 🤖 Autonomia</label>
         <label class="chip tgl" title="Acelera sozinho durante ações longas"><input type="checkbox" id="accel" checked> ⏩ Auto-acelerar</label>
+        <button class="chip btn" id="mapBtn" title="Ver o bairro inteiro (M)">🗺️ Mapa</button>
         <button class="chip btn mobonly" id="statBtn">📊</button>
         <button class="chip btn" id="phoneBtn">📱 Celular</button>
         <button class="chip btn" id="menuBtn">☰</button>
@@ -25,7 +26,7 @@ export class UI {
       <div id="right" class="panel"><div class="tabs" id="tabs">
         <button data-t="pessoas">👥 Pessoas</button><button data-t="perfil">📋 Perfil</button><button data-t="diario">📖 Diário</button></div><div id="tabBody"></div></div>
       <div id="actionbar"></div>
-      <div id="hint">Clique em objetos, prédios e pessoas • Arraste para mover a câmera • Roda do mouse: zoom • Q/E: girar • Espaço: pausar</div>
+      <div id="hint">Clique em objetos, prédios e pessoas • Arraste: mover • Roda: zoom • Q/E: girar • M: mapa • Espaço: pausar<br><span class="osm">Mapa: São Francisco, São Luís/MA • dados © OpenStreetMap contributors</span></div>
       <div id="menu" class="popup hidden"></div>
       <div id="toasts"></div>
       <div id="tooltip" class="hidden"></div>
@@ -38,6 +39,7 @@ export class UI {
     $('#phoneBtn').addEventListener('click', e => { const r = e.target.getBoundingClientRect(); this.openPhone(r.left, r.bottom + 6); });
     $('#menuBtn').addEventListener('click', () => this.systemMenu());
     $('#statBtn').addEventListener('click', () => { $('#left').classList.toggle('show'); });
+    $('#mapBtn').addEventListener('click', () => sim.world.toggleMap());
     this.refreshTabs(); this.setSpeed(1);
     this.leftBuilt = false;
   }

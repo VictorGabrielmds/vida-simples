@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World } from './world.js';
+import { World, APT } from './world.js';
 import { Sim } from './sim.js';
 import { UI } from './ui.js';
 
@@ -77,7 +77,7 @@ function click(e) {
   if (p.iid && world.objs[p.iid].type !== 'decor') { ui.openFor({ kind: 'obj', obj: world.objs[p.iid] }, e.clientX, e.clientY); return; }
   if (p.cell) { sim.clickWalk(p.cell[0], p.cell[1]); }
 }
-canvas.addEventListener('wheel', e => { e.preventDefault(); const c = world.cam; c.zoomT = Math.max(5, Math.min(26, c.zoomT * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: false });
+canvas.addEventListener('wheel', e => { e.preventDefault(); const c = world.cam; c.zoomT = Math.max(4, Math.min(1200, c.zoomT * (e.deltaY > 0 ? 1.12 : 0.89))); }, { passive: false });
 window.addEventListener('keydown', e => {
   if (!started || e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase(); keys.add(k);
@@ -88,6 +88,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'c') world.cam.follow = true;
   else if (k === 'escape') ui.hideMenu();
   else if (k === 'p') ui.openPhone(window.innerWidth - 300, 60);
+  else if (k === 'm') world.toggleMap();
 });
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('beforeunload', () => { if (started) sim.save(); });
@@ -106,7 +107,7 @@ function frame(now) {
     sim.advance(dt);
   } else { sim.timeSec += dt; sim.render(dt); world.cam.yawT += dt * 0.08; world.cam.yaw = world.cam.yawT; }
   const f = sim.player.visible ? sim.player : sim.player;
-  world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: 22, z: 23 });
+  world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: APT.ox + 9, z: APT.oz + 6 });
   world.render();
   uiAcc += dt; if (uiAcc > 0.2) { uiAcc = 0; if (started) ui.update(); }
   requestAnimationFrame(frame);

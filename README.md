@@ -25,9 +25,21 @@ Um simulador de vida em **3D com câmera ortográfica** (estilo The Sims, porém
 | **Dinheiro** | Salário no dia 5 • aluguel dia 10 (multa e despejo se atrasar) • contas de luz/água/internet dia 15 (corte de luz!) |
 | **Namorada** | Júlia tem rotina, humor e relação própria: conversar, elogiar, abraçar, beijar, presentear, jantares, passeios, filme em casa. **Mêsversário no dia 20** 💞. Se for negligenciada, ela termina o namoro |
 | **Outros NPCs** | Marcos (colega), Dona Lúcia (senhora), Seu Antônio, Camila e Rafa — cada um com horários, necessidades e emoções |
-| **Cidade** | Mapa inspirado no bairro São Francisco (São Luís/MA): península com praia, avenida principal, ruas em grade, casa alugada, Escritório, Fábrica de Salgados, casa da Júlia, Mercado, Academia, Bar do Zé e a Praça Pôr do Sol |
+| **Cidade** | O bairro São Francisco (São Luís/MA) **em escala real** — veja [Mapa](#mapa) |
 | **Eventos** | Vazamento, vizinho barulhento, mãe ligando, convite do Marcos, elogio do chefe, cobrança da senhoria... |
 | **Ciclo dia/noite** | Iluminação, sombras, janelas e postes que acendem |
+
+## Mapa
+
+O mundo é o bairro **São Francisco, São Luís/MA**, em **escala real: 1 unidade = 1 metro**.
+
+- Área: **1.941 m × 1.978 m** (o mesmo recorte do mapa de referência, alinhado em Web Mercator: zoom 15,75 ≈ 2,83 m por pixel).
+- Ruas, avenidas, ponte, linha da costa, praças e prédios vêm do **OpenStreetMap**: 327 vias, cerca de 63 km de ruas com largura e calçada por tipo de via e nomes reais escritos no asfalto.
+- Cerca de 4.600 casas foram distribuídas em lotes ao longo das ruas, voltadas para a calçada, e há cerca de 7.700 árvores e 1.600 postes.
+- **Locais do jogo** (posicionados pelos marcadores do mapa de referência): casa alugada, Escritório, Fábrica de Salgados, casa da Júlia, casa da Dona Lúcia, Supermercado, Academia, Bar do Zé e a Praça Pôr do Sol.
+- Andar custa tempo real de jogo (~75 m por minuto). Na tela, trajetos longos são acelerados. Use **M** (ou 🗺️ Mapa) para ver o bairro inteiro de cima.
+
+O mapa é gerado por `tools/build_map.py` (Python com shapely, OpenCV e Pillow) a partir de um export do OSM e do alinhamento com a imagem de referência. O resultado fica em `js/mapdata.js`.
 
 ## Rodando localmente
 
@@ -47,9 +59,11 @@ js/main.js          loop, câmera e entrada
 js/world.js         cena 3D, cidade, apartamento, luz
 js/sim.js           simulação: tempo, necessidades, ações, NPCs, eventos
 js/char.js          personagens low-poly, poses, balões de emoção
-js/nav.js           A* na grade
+js/nav.js           A* na grade de 1 m (janela + caminho suavizado)
 js/ui.js            HUD, menus, lojas
 js/data.js          constantes e dados
+js/mapdata.js       mapa do bairro (gerado)
+tools/build_map.py  gerador do mapa
 vendor/             three.js
 ```
 
@@ -63,4 +77,5 @@ vendor/             three.js
 
 ## Licença
 
-MIT — veja [LICENSE](LICENSE). Three.js © seus autores, licença MIT.
+Código: MIT — veja [LICENSE](LICENSE). Three.js © seus autores, licença MIT.
+Dados do mapa: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licença ODbL.

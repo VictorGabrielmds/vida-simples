@@ -1,3 +1,6 @@
 node_modules/
 .claude/
 *.log
+*.png
+*_debug.png
+tools/*.json

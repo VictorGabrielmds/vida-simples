@@ -99,7 +99,7 @@ export class Walker {
   constructor(world, charOpts, x, z) {
     this.world = world; this.c = makeChar(charOpts);
     this.x = x; this.z = z; this.y = 0; this.rot = 0; this.path = []; this.moving = false;
-    this.speed = 1.4; this.pose = 'idle'; this.visible = true; this.seatY = null; this.seated = false;
+    this.speed = 75; this.pose = 'idle'; this.visible = true; this.seatY = null; this.seated = false;
     world.scene.add(this.c.group); this.sync();
   }
   get cx() { return Math.floor(this.x); }
@@ -111,6 +111,7 @@ export class Walker {
     this.path = p; this.moving = p.length > 0; return true;
   }
   stop() { this.path = []; this.moving = false; }
+  remaining() { let d = 0, px = this.x, pz = this.z; for (const [x, z] of this.path) { d += Math.hypot(x - px, z - pz); px = x; pz = z; } return d; }
   face(tx, tz) { this.rot = Math.atan2(tx - this.x, tz - this.z); }
   update(dtMin) {
     if (this.seated) { this.moving = false; return; }

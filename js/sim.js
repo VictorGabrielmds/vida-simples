@@ -1,10 +1,14 @@
 import { NEEDS, ITEMS, ITEM_QTY, FURNITURE, MONTHS, WEEKDAYS, WANTS, NPC_DEFS, MIN_PER_SEC, emotionOf, moodOf, fmt, clamp, rnd, pick, hhmm } from './data.js';
 import { Walker, setShirt, makeBubble } from './char.js';
-import { APT } from './world.js';
+import { APT, SPOTS } from './world.js';
 
-const SAVE_KEY = 'vida-simples-save-v2';
-const EDGE_L = [12, 30], EDGE_R = [74, 54];
-const WANDER = { park: [13, 34, 21, 40], street: [13, 29, 31, 31], lucia: [14, 29, 30, 31], rafa: [14, 44, 58, 45] };
+const SAVE_KEY = 'vida-simples-save-v3';
+// Pontos vindos do mapa real (metros). EDGE = onde os NPCs "saem" do bairro (ponte ao sul / avenida a nordeste).
+const EDGE_L = SPOTS.edgeL, EDGE_R = SPOTS.edgeR;
+const WANDER = { park: SPOTS.park, street: SPOTS.street, lucia: SPOTS.lucia, rafa: SPOTS.rafa };
+// Escala real: andar = ~75 m por minuto de jogo. Na tela o deslocamento é mostrado a 4–30 m/s
+// e o relógio avança conforme a distância percorrida (trajetos longos não "comem" horas).
+export const WALK = 75, NPC_WALK = 68, STROLL = 2.5;
 const RENT = 1300;
 
 export function newState() {
@@ -62,7 +66,7 @@ export class Sim {
   makeNpc(id) {
     const d = NPC_DEFS[id];
     const w = new Walker(this.world, { skin: d.skin, shirt: d.shirt, pants: d.pants, hair: d.hair, long: d.long }, 0, 0);
-    w.visible = false; w.speed = 1.2 + Math.random() * 0.3;
+    w.visible = false; w.speed = NPC_WALK + Math.random() * 12;
     const n = { id, def: d, walker: w, rel: d.rel, mod: 0, needs: { fome: 70, energia: 80, social: 60, diversao: 60, calma: 65 }, loc: 'away', dest: null, busy: false, visit: null, mood: d.mood0, emoteUntil: 0, barDay: false };
     this.npcs[id] = n; return n;
   }
@@ -114,7 +118,7 @@ export class Sim {
       if (n.loc !== 'away') this.pres(n.loc).delete(n.id);
       w.setPos(spawn[0] + 0.5, spawn[1] + 0.5); w.visible = true;
     }
-    n.dest = goal; n.loc = 'travel';
+    n.dest = goal; n.loc = 'travel'; w.speed = NPC_WALK + Math.random() * 12;
     const t = this.npcTarget(n, goal);
     if (!w.goTo(t[0], t[1])) { w.setPos(t[0] + 0.5, t[1] + 0.5); }
   }
@@ -146,8 +150,8 @@ export class Sim {
       if (n.id === 'julia' && this.s.flags.broke && goal === 'apartment') { /* nada */ }
       this.startTravel(n, goal); return;
     }
-    if (!n.dest && w.visible && !w.moving && ['park', 'street'].includes(n.loc) && Math.random() < 0.12) { const c = this.wanderCell(n); w.goTo(c[0], c[1]); }
-    if (!n.dest && n.loc === 'apartment' && w.visible && !w.moving && Math.random() < 0.08) { const c = this.npcTarget(n, 'apartment'); w.goTo(c[0], c[1]); }
+    if (!n.dest && w.visible && !w.moving && ['park', 'street'].includes(n.loc) && Math.random() < 0.12) { const c = this.wanderCell(n); w.speed = STROLL; w.goTo(c[0], c[1]); }
+    if (!n.dest && n.loc === 'apartment' && w.visible && !w.moving && Math.random() < 0.08) { const c = this.npcTarget(n, 'apartment'); w.speed = STROLL; w.goTo(c[0], c[1]); }
   }
   locLabel(n) {
     const m = { julia_home: 'Em casa', lucia_home: 'Em casa', away: this.isWorkday && this.hour > 8 && this.hour < 18 ? 'Trabalhando' : 'Fora', office: 'No escritório', bar: 'No bar', park: 'No parque', street: 'Na rua', apartment: 'No seu apê', market: 'No mercado', travel: 'A caminho' };
@@ -345,7 +349,7 @@ export class Sim {
       if (obj && obj.cells) p.face(obj.cells[0] + obj.cells[2] / 2, obj.cells[1] + obj.cells[3] / 2);
       else if (obj && obj.group && !def.inside) { /* nada */ }
     }
-    if (def.wander) { p.pose = def.run ? 'run' : 'idle'; p.speed = def.run ? 2.4 : 1.4; this.pickWander(); }
+    if (def.wander) { p.pose = def.run ? 'run' : 'idle'; p.speed = def.run ? STROLL * 2 : STROLL; this.pickWander(); }
     if (def.partner) this.startPartner(def, t.target, obj);
     if (def.tv) this.world.setTv(true);
     if (this.inside) { this.insideBubble.setEmoji(def.icon); this.insideBubble.visible = true; }
@@ -375,7 +379,7 @@ export class Sim {
     if (def.sleep) { c.sleepMin++; this.sleptMin = c.sleepMin; }
     def.tick && def.tick();
     if (def.wander && !this.player.moving) this.pickWander();
-    if (def.follow) { const pn = this.npcs[def.partner].walker; if (Math.hypot(pn.x - this.player.x, pn.z - this.player.z) > 2.2 && !pn.moving) pn.goTo(this.player.cx, this.player.cz); }
+    if (def.follow) { const pn = this.npcs[def.partner].walker; if (Math.hypot(pn.x - this.player.x, pn.z - this.player.z) > 2.2 && !pn.moving) { pn.speed = STROLL * 1.2; pn.goTo(this.player.cx, this.player.cz); } }
     c.left--;
     if (c.left <= 0 || (def.until && c.sleepMin > 10 && def.until())) this.finishAction(false);
     else if (def.rate && def.rate.calma < 0 && !def.sleep) { /* trabalho: nada extra */ }
@@ -388,7 +392,7 @@ export class Sim {
     if (!cancelled && def.onFinish) def.onFinish();
     if (!cancelled) { if (def.trig) this.emit(def.trig); if (def.trig2) this.emit(def.trig2); }
     if (def.partner) { const n = this.npcs[def.partner]; n.busy = false; n.walker.seated = false; n.walker.seatY = null; n.walker.pose = 'idle'; if (n.walker.visible && n.loc === 'apartment' && def.partnerSeat) { const cc = this.world.nav.nearestFree(n.walker.cx, n.walker.cz + 1); if (cc) n.walker.setPos(cc[0] + 0.5, cc[1] + 0.5); } }
-    if (def.wander) { p.speed = 1.4; p.stop(); }
+    if (def.wander) { p.speed = WALK; p.stop(); }
     p.pose = 'idle';
     this.insideBubble.visible = false;
     if (p.seated) {
@@ -531,7 +535,11 @@ export class Sim {
   advance(dtReal) {
     this.timeSec += dtReal; this.frame = (this.frame || 0) + 1;
     if (this.paused || this.modalOpen > 0 || this.s.over) { this.render(0); return; }
-    let dtMin = Math.min(dtReal * MIN_PER_SEC * this.effSpeed(), 25);
+    // relógio: normal = MIN_PER_SEC min/s; andando = proporcional à distância (visual de 4 a 45 m/s)
+    const p = this.player;
+    let rate = MIN_PER_SEC;
+    if (p.visible && p.path.length && !(this.cur && this.cur.def.wander)) { const vis = Math.max(4, Math.min(45, p.remaining() / 3)); rate = vis / p.speed; }
+    let dtMin = Math.min(dtReal * rate * this.effSpeed(), 25);
     this.player.update(dtMin);
     for (const id in this.npcs) { const n = this.npcs[id]; n.walker.update(dtMin); if (n.dest && !n.walker.moving && !n.walker.path.length) this.npcArrive(n); }
     this.processTasks();
