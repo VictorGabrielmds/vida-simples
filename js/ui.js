@@ -116,9 +116,9 @@ export class UI {
     const opt = (v, icon, sub) => ({ icon, label: `${GFX_LABEL[v]}${v === cur ? '  ✓' : ''}`, sub, fn: () => pick(v) });
     this.menu('🎨 Qualidade gráfica', 'O jogo salva e recarrega para aplicar', [
       opt('auto', '✨', 'Recomendado: ajusta a resolução sozinho'),
-      opt('alto', '🌟', 'Sombras suaves e brilho noturno (bloom)'),
-      opt('medio', '⚖️', 'Sombras normais, sem bloom'),
-      opt('baixo', '🐢', 'Sem sombras, menos carros, mais leve'),
+      opt('alto', '🌟', 'Imagem mais nítida e mais carros na rua'),
+      opt('medio', '⚖️', 'Equilibrado'),
+      opt('baixo', '🐢', 'O mais leve: menos carros e sem sombra de nuvens'),
     ], r.left - 200, r.bottom + 6);
   }
 

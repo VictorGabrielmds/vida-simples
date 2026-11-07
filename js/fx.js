@@ -38,7 +38,7 @@ const WXZ_VERT = `#include <project_vertex>
 
 // Sombras de nuvens passando sobre a cidade (aplicado em todos os materiais Lambert)
 export function patch(m) {
-  if (!m || m.userData.fxPatched || !(m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return m;
+  if (!m || m.userData.fxPatched || !(m.isMeshLambertMaterial || m.isMeshPhongMaterial || m.isMeshToonMaterial || (m.isMeshBasicMaterial && m.userData.ground))) return m;
   m.userData.fxPatched = true;
   m.onBeforeCompile = sh => {
     sh.uniforms.uNoise = U.uNoise; sh.uniforms.uCloudOff = U.uCloudOff; sh.uniforms.uCloudAmt = U.uCloudAmt;
@@ -165,4 +165,41 @@ export function gradBox(bottom = 0.72) {
   const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), p = g.attributes.position, c = [];
   for (let i = 0; i < p.count; i++) { const v = bottom + (1 - bottom) * Math.min(1, p.getY(i) * 1.6); c.push(v, v, v); }
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); return g;
+}
+
+// ---------- estilo cartoon ----------
+let GRAD = null;
+export function toonGradient() {
+  if (GRAD) return GRAD;
+  GRAD = new THREE.DataTexture(new Uint8Array([168, 206, 236, 255]), 4, 1, THREE.RedFormat);
+  GRAD.minFilter = GRAD.magFilter = THREE.NearestFilter; GRAD.generateMipmaps = false; GRAD.needsUpdate = true;
+  return GRAD;
+}
+// material "toon" (sombreamento em faixas suaves) já com as sombras de nuvem
+export function toon(params = {}) {
+  const p = { ...params }; delete p.flatShading;
+  return patch(new THREE.MeshToonMaterial({ gradientMap: toonGradient(), ...p }));
+}
+// material de chão SEM cálculo de luz (o chão é plano: a luz é igual em todo ele).
+// A cor é multiplicada por um "tom do dia" atualizado em setTime. Bem mais barato por pixel.
+export const groundMats = [];
+export function ground(params = {}) {
+  const m = new THREE.MeshBasicMaterial(params); m.userData.ground = true; m.userData.base = m.color.clone();
+  groundMats.push(m); return patch(m);
+}
+export function tintGround(tint) { for (const m of groundMats) m.color.copy(m.userData.base).multiply(tint); }
+// sombrinhas desenhadas (bem mais leves que sombras em tempo real)
+function alphaTex(draw, S = 128) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d'); draw(g, S);
+  const t = new THREE.CanvasTexture(cv); return t;
+}
+let BLOB = null, RECT = null;
+export function blobTexture() {
+  return BLOB || (BLOB = alphaTex((g, S) => { const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(255,255,255,0.85)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }, 64));
+}
+export function rectShadowTexture() {
+  return RECT || (RECT = alphaTex((g, S) => { g.shadowColor = 'rgba(255,255,255,0.9)'; g.shadowBlur = S * 0.07; g.shadowOffsetX = S * 4; g.fillStyle = '#fff'; g.fillRect(S * 0.13 - S * 4, S * 0.13, S * 0.74, S * 0.74); }));
+}
+export function shadowMaterial(tex, opacity = 0.35) {
+  return new THREE.MeshBasicMaterial({ map: tex, color: '#283062', transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 }

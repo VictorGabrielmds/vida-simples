@@ -2,13 +2,9 @@ import * as THREE from 'three';
 import { Nav } from './nav.js';
 import { mat, makeLabel } from './char.js';
 import MAP from './mapdata.js';
-import { U, patch, noiseTexture, waterMaterial, grassTexture, pavingTexture, asphaltTexture, glowTexture, coastStrips, geomFrom, merge, gradBox } from './fx.js';
+import { U, patch, noiseTexture, waterMaterial, grassTexture, pavingTexture, asphaltTexture, glowTexture, coastStrips, geomFrom, merge, gradBox, toon, blobTexture, rectShadowTexture, shadowMaterial, ground, tintGround } from './fx.js';
 import { Traffic } from './traffic.js';
 import { Batch } from './batch.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 export const W = MAP.W, H = MAP.H;
 export const APT = { ox: MAP.home.ox, oz: MAP.home.oz, w: 18, d: 12 };
@@ -37,8 +33,8 @@ const unit = new THREE.BoxGeometry(1, 1, 1);
 // Qualidade gráfica (salva no navegador). "auto" = Médio no PC, Baixo no celular, com resolução dinâmica.
 const GFX_KEY = 'vida-simples-graficos';
 export const GFX = {
-  alto: { label: 'Alto', dpr: 1.6, shadows: true, shadowMap: 2048, soft: true, bloom: true, cars: 90, aa: true, clouds: true, shadowEvery: 1 },
-  medio: { label: 'Médio', dpr: 1.25, shadows: true, shadowMap: 2048, soft: false, bloom: false, cars: 60, aa: true, clouds: true, shadowEvery: 2 },
+  alto: { label: 'Alto', dpr: 1.75, shadows: false, shadowMap: 1024, soft: false, bloom: false, cars: 90, aa: true, clouds: true, shadowEvery: 1 },
+  medio: { label: 'Médio', dpr: 1.35, shadows: false, shadowMap: 1024, soft: false, bloom: false, cars: 60, aa: true, clouds: true, shadowEvery: 2 },
   baixo: { label: 'Baixo', dpr: 1.0, shadows: false, shadowMap: 1024, soft: false, bloom: false, cars: 30, aa: false, clouds: false, shadowEvery: 3 },
 };
 export function gfxPref() { try { return localStorage.getItem(GFX_KEY) || 'auto'; } catch (e) { return 'auto'; } }
@@ -62,18 +58,17 @@ export class World {
     this.scene.background = new THREE.Color('#a9d8f5');
     this.nav = new Nav(W, H);
     this.objs = {}; this.pickables = []; this.walls = []; this.dirt = []; this.ownedGroups = {}; this.labels = [];
-    this.lod = [new THREE.Group(), new THREE.Group(), new THREE.Group(), new THREE.Group()]; this.lod.forEach(g => this.scene.add(g));
+    this.lod = [new THREE.Group(), new THREE.Group(), new THREE.Group(), new THREE.Group(), new THREE.Group()]; this.lod.forEach(g => this.scene.add(g));
     this.batch = new Batch(240);
     this.cam = { target: new THREE.Vector3(APT.ox + 9, 0, APT.oz + 6), yaw: Math.PI / 4, yawT: Math.PI / 4, zoom: 14, zoomT: 14, follow: true };
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 6000);
     this.pitch = 0.74;
-    this.winMat = new THREE.MeshLambertMaterial({ color: '#7fa8c9', emissive: '#ffd37a', emissiveIntensity: 0 });
-    this.lampMat = new THREE.MeshLambertMaterial({ color: '#fff4c2', emissive: '#ffd37a', emissiveIntensity: 0 });
+    this.winMat = toon({ color: '#7fa8c9', emissive: '#ffd37a', emissiveIntensity: 0 });
+    this.lampMat = toon({ color: '#fff4c2', emissive: '#ffd37a', emissiveIntensity: 0 });
     this.setupLights();
     this.build();
     this.traffic = new Traffic(this.scene, MAP.roads, this.lampMat, Q.cars);
     this.scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(patch); });
-    if (Q.bloom) this.setupPost();
     this.resize();
     this.setTime(7 * 60);
     window.addEventListener('resize', () => this.resize());
@@ -87,18 +82,9 @@ export class World {
     this.sun.shadow.bias = -0.0005; this.sun.shadow.normalBias = 0.05;
     this.scene.add(this.sun, this.sun.target);
     // uma única luz pontual para o apartamento (cada luz pontual pesa em todos os pixels)
-    this.roomLight = new THREE.PointLight('#ffd9a0', 0, 24, 1.2); this.roomLight.position.set(APT.ox + 9, 2.4, APT.oz + 6);
-    this.scene.add(this.roomLight);
+    this.roomLight = null; // luz interna é desenhada (ver buildApartment)
   }
 
-  setupPost() {
-    const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 2 });
-    this.composer = new EffectComposer(this.renderer, rt);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.12, 0.6, 0.86);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
-  }
   buildGulls() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.25, -0.9, 0.15, -0.15, 0, 0, -0.25, 0, 0, 0.25, 0.9, 0.15, -0.15, 0, 0, -0.25], 3)); g.computeVertexNormals();
@@ -125,6 +111,12 @@ export class World {
       });
       this.gulls.instanceMatrix.needsUpdate = true;
     }
+  }
+  // tom do chão conforme a hora (o chão não calcula luz; recebe essa cor pronta)
+  groundTint(day, dusk) {
+    const t = this._tint || (this._tint = new THREE.Color());
+    t.setRGB(0.36, 0.42, 0.66).lerp(new THREE.Color(1.04, 1.03, 1.0), day).lerp(new THREE.Color(1.05, 0.86, 0.74), dusk * 0.55);
+    return t;
   }
   waterNear(x, z) {
     const g = this.waterCoarse; if (!g) return 0;
@@ -160,6 +152,9 @@ export class World {
     this.buildTrees();
     this.batch.build(this.lod);
     this.buildApartment();
+    this.roomGlow = new THREE.MeshBasicMaterial({ map: glowTexture(), color: '#ffcf8a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    for (const [gx, gz, r] of [[12, 6, 13], [4, 3.5, 8], [4, 9, 6.5]]) { const gm = new THREE.Mesh(new THREE.PlaneGeometry(r, r).rotateX(-Math.PI / 2), this.roomGlow); gm.position.set(APT.ox + gx, FLOOR_Y + 0.03, APT.oz + gz); gm.renderOrder = 3; this.aptGroup.add(gm); }
+    { const sh = new THREE.Mesh(new THREE.PlaneGeometry(APT.w + 9, APT.d + 9).rotateX(-Math.PI / 2), shadowMaterial(blobTexture(), 0.45)); sh.position.set(APT.ox + APT.w / 2 + 0.3, 0.096, APT.oz + APT.d / 2 + 0.3); sh.renderOrder = 1; this.scene.add(sh); }
     for (const [id, p] of Object.entries(MAP.places)) this.addBuilding(id, p);
     this.buildPark();
     const ap = this.objs.apartment.approach;
@@ -201,17 +196,15 @@ export class World {
   buildGround() {
     const S = this.scene;
     this.waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(W * 5, H * 5), waterMaterial());
-    this.waterMesh.rotation.x = -Math.PI / 2; this.waterMesh.position.set(W / 2, -0.5, H / 2); this.waterMesh.receiveShadow = true; S.add(this.waterMesh);
+    this.waterMesh.rotation.x = -Math.PI / 2; this.waterMesh.position.set(W / 2, -0.5, H / 2); this.waterMesh.renderOrder = 6; S.add(this.waterMesh);
     const grass = grassTexture(); this.grassTex = grass;
     const lg = new THREE.ExtrudeGeometry(MAP.land.map(p => this.shapeOf(p)), { depth: 0.6, bevelEnabled: false, curveSegments: 1 });
     lg.rotateX(-Math.PI / 2);
-    const land = new THREE.Mesh(lg, new THREE.MeshLambertMaterial({ color: '#b5d49a', map: grass })); land.position.y = -0.6; land.receiveShadow = true; S.add(land);
-    const tex = (c) => new THREE.MeshLambertMaterial({ color: c, map: grass });
-    this.flat(MAP.parks.map(p => p.p), null, 0.02, { material: tex('#93d47f') });
-    this.flat(MAP.veg.map(v => v.p), null, 0.022, { material: tex('#a6cc8c') });
-    this.flat(MAP.pitches, null, 0.025, { material: tex('#62bd5f') });
+    const land = new THREE.Mesh(lg, ground({ color: '#aecd93', map: grass })); land.position.y = -0.6; land.renderOrder = 5; S.add(land);
+    const tex = (c) => ground({ color: c, map: grass });
+    [this.flat(MAP.parks.map(p => p.p), null, 0.02, { material: tex('#8ccc78') }), this.flat(MAP.veg.map(v => v.p), null, 0.022, { material: tex('#a0c686') }), this.flat(MAP.pitches, null, 0.025, { material: tex('#5db55a') })].forEach(m => { if (m) m.renderOrder = 4; });
     const { sand, foam } = coastStrips(MAP.land, W, H);
-    const sm = new THREE.Mesh(geomFrom(sand), new THREE.MeshLambertMaterial({ color: '#f0dfae', map: grass, side: THREE.DoubleSide })); sm.receiveShadow = true; S.add(sm);
+    const sm = new THREE.Mesh(geomFrom(sand), ground({ color: '#f0dfae', map: grass, side: THREE.DoubleSide })); sm.renderOrder = 4; S.add(sm);
     this.foamMat = new THREE.MeshBasicMaterial({ color: '#f4fbff', transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
     S.add(new THREE.Mesh(geomFrom(foam), this.foamMat));
   }
@@ -257,11 +250,17 @@ export class World {
       }
     }
     const pav = pavingTexture(), asp = asphaltTexture();
-    const mats = { side: new THREE.MeshLambertMaterial({ color: '#ffffff', map: pav }), minor: new THREE.MeshLambertMaterial({ color: '#eceef2', map: asp }), main: new THREE.MeshLambertMaterial({ color: '#c8ccd4', map: asp }), mark: mat('#f7f4e8'), zebra: mat('#f4f2ea') };
-    for (const [name, L] of Object.entries(layers)) for (const a of L.values()) {
-      if (!a.length) continue;
-      const m = new THREE.Mesh(geomFrom(a), mats[name]); m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix();
-      (name === 'mark' || name === 'zebra' ? this.lod[1] : this.lod[0]).add(m);
+    const mats = { side: ground({ color: '#f2efe8', map: pav }), minor: ground({ color: '#d9dce3', map: asp }), main: ground({ color: '#b9bec8', map: asp }), mark: ground({ color: '#f3f1e6' }), zebra: ground({ color: '#f1efe6' }) };
+    const order = { mark: 1, zebra: 1, main: 2, minor: 2, side: 3 };
+    for (const [name, L] of Object.entries(layers)) {
+      const all = [];
+      for (const a of L.values()) {
+        if (!a.length) continue;
+        const m = new THREE.Mesh(geomFrom(a), mats[name]); m.matrixAutoUpdate = false; m.updateMatrix(); m.renderOrder = order[name];
+        (name === 'mark' || name === 'zebra' ? this.lod[1] : this.lod[2]).add(m);
+        if (name !== 'mark' && name !== 'zebra') for (const x of a) all.push(x);
+      }
+      if (all.length) { const m = new THREE.Mesh(geomFrom(all), mats[name]); m.matrixAutoUpdate = false; m.updateMatrix(); m.renderOrder = order[name]; this.lod[4].add(m); }
     }
   }
   buildStreetLabels() {
@@ -282,11 +281,15 @@ export class World {
   }
   buildOsmBuildings() {
     const col = { apartments: '#f0e6d6', commercial: '#d6e2ee', church: '#fbf3df', public: '#e9ddc9', house: '#f6dfc2', school: '#f3d9a6', yes: '#efe2cf' };
+    const P = [], N = [], C = [], cc = new THREE.Color();
     for (const b of MAP.buildings) {
-      const hgt = b.l * 3.2, g = new THREE.ExtrudeGeometry(this.shapeOf(b.p), { depth: hgt, bevelEnabled: false, curveSegments: 1 }); g.rotateX(-Math.PI / 2);
-      const p = g.attributes.position, c = []; for (let i = 0; i < p.count; i++) { const v = 0.74 + 0.26 * Math.min(1, p.getY(i) / Math.min(hgt, 4)); c.push(v, v, v); }
-      g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
-      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: col[b.k] || col.yes, vertexColors: true })); m.castShadow = true; m.receiveShadow = true; this.scene.add(m);
+      const hgt = b.l * 3.2, g = new THREE.ExtrudeGeometry(this.shapeOf(b.p), { depth: hgt, bevelEnabled: false, curveSegments: 1 }).toNonIndexed(); g.rotateX(-Math.PI / 2);
+      const p = g.attributes.position, n = g.attributes.normal; cc.set(col[b.k] || col.yes);
+      for (let i = 0; i < p.count; i++) { const v = 0.74 + 0.26 * Math.min(1, p.getY(i) / Math.min(hgt, 4)); P.push(p.getX(i), p.getY(i), p.getZ(i)); N.push(n.getX(i), n.getY(i), n.getZ(i)); C.push(cc.r * v, cc.g * v, cc.b * v); }
+    }
+    if (P.length) {
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+      const m = new THREE.Mesh(g, toon({ vertexColors: true })); m.matrixAutoUpdate = false; m.updateMatrix(); this.scene.add(m);
     }
   }
   buildHouses() {
@@ -296,11 +299,19 @@ export class World {
     const tiles = ['#c45c33', '#b14f2c', '#d1703f', '#a65a3a', '#c9643c'], muroC = ['#f6f1e7', '#ece6da', '#f3e5cf', '#e4ecee', '#f1e9e0'];
     const pyr = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0);
     const box1 = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), boxC = new THREE.BoxGeometry(1, 1, 1);
-    const lam = (o = {}) => new THREE.MeshLambertMaterial({ color: '#ffffff', ...o });
-    this.darkGlass = new THREE.MeshLambertMaterial({ color: '#5f7e96' });
-    const shadowsOn = this.Q.shadows;
-    B.kind('body', gradBox(0.7), lam({ vertexColors: true }), { cast: shadowsOn })
-      .kind('roofT', pyr, lam(), { cast: shadowsOn }).kind('roofF', gradBox(0.85), lam({ vertexColors: true }), { cast: shadowsOn })
+    const lam = (o = {}) => toon({ color: '#ffffff', ...o });
+    this.darkGlass = toon({ color: '#5f7e96' });
+    const shadowsOn = false;
+    const gable = (() => { const g = new THREE.BufferGeometry(), P = [-0.5, 0, -0.5, 0.5, 0, -0.5, 0.5, 0, 0.5, -0.5, 0, 0.5, -0.5, 1, 0, 0.5, 1, 0];
+      const I = [3, 2, 5, 3, 5, 4, 1, 0, 4, 1, 4, 5, 0, 3, 4, 2, 1, 5]; const pos = []; for (const i of I) pos.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g; })();
+    const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const flowersC = ['#ff7eb3', '#ffd166', '#ff6b6b', '#c39bf0', '#ffffff', '#ffa94d'];
+    B.kind('roofG', gable, lam(), { lod: 2, far: 4 }).kind('awning', box1, lam(), { lod: 1, receive: false })
+      .kind('flower', box1, lam(), { lod: 1, receive: false })
+      .kind('hshadow', plane, shadowMaterial(blobTexture(), 0.5), { lod: 2, receive: false, order: 1 });
+    B.kind('body', gradBox(0.7), lam({ vertexColors: true }), { lod: 2, far: 4 })
+      .kind('roofT', pyr, lam(), { lod: 2, far: 4 }).kind('roofF', gradBox(0.85), lam({ vertexColors: true }), { lod: 2, far: 4 })
       .kind('tank', new THREE.CylinderGeometry(0.62, 0.62, 0.95, 8).translate(0, 0.47, 0), mat('#2f82d4'), { lod: 1 })
       .kind('winL', boxC, this.winMat, { lod: 1, receive: false }).kind('winD', boxC, this.darkGlass, { lod: 1, receive: false })
       .kind('frame', boxC, mat('#fbfbf7'), { lod: 1, receive: false }).kind('door', box1, mat('#7b5236'), { lod: 1, receive: false })
@@ -312,7 +323,10 @@ export class World {
       q.setFromEuler(e.set(0, ang, 0));
       const fx = Math.sin(ang), fz = Math.cos(ang), rx = Math.cos(ang), rz = -Math.sin(ang), off = d / 2;
       B.add('body', m4.compose(v.set(cx, 0, cz), q, s.set(w, h, d)), c.set(wc));
-      if (!com && i % 3 !== 0) B.add('roofT', m4.compose(v.set(cx, h, cz), q, s.set(w + 0.7, Math.min(2.4, w * 0.3), d + 0.7)), c.set(tiles[(ci + i) % tiles.length]));
+      const roofCol = tiles[(ci + i) % tiles.length];
+      B.add('hshadow', m4.compose(v.set(cx + 0.3, 0.096, cz + 0.3), q, s.set(w + 6, 1, d + 6)));
+      if (!com && i % 3 === 1) B.add('roofT', m4.compose(v.set(cx, h, cz), q, s.set(w + 0.7, Math.min(2.4, w * 0.3), d + 0.7)), c.set(roofCol));
+      else if (!com && i % 3 === 2) B.add('roofG', m4.compose(v.set(cx, h, cz), q, s.set(w + 0.8, Math.min(2.6, d * 0.2), d + 0.8)), c.set(roofCol));
       else {
         B.add('roofF', m4.compose(v.set(cx, h, cz), q, s.set(w + 0.3, 0.35, d + 0.3)), c.set(com ? '#b9bfc8' : '#e2dccf'));
         B.add('tank', m4.compose(v.set(cx + rx * w * 0.22 - fx * d * 0.2, h + 0.35, cz + rz * w * 0.22 - fz * d * 0.2), q, s.set(1, 1, 1)));
@@ -321,6 +335,8 @@ export class World {
       B.add('frame', m4.compose(v.set(wx + fx * 0.02, wy + wh / 2, wz + fz * 0.02), q, s.set(w * 0.5 + 0.35, wh + 0.35, 0.06)));
       B.add((i * 7) % 10 < 6 ? 'winL' : 'winD', m4.compose(v.set(wx + fx * 0.05, wy + wh / 2, wz + fz * 0.05), q, s.set(w * 0.5, wh, 0.08)));
       B.add('door', m4.compose(v.set(cx + fx * (off + 0.05) - rx * w * 0.32, 0, cz + fz * (off + 0.05) - rz * w * 0.32), q, s.set(1.0, 2.1, 0.1)));
+      B.add('awning', m4.compose(v.set(cx + fx * (off + 0.45) - rx * w * 0.32, 2.3, cz + fz * (off + 0.45) - rz * w * 0.32), q, s.set(1.7, 0.12, 0.9)), c.set(com ? '#e76f51' : roofCol));
+      if (!com && floors === 1 && i % 2 === 0) B.add('flower', m4.compose(v.set(wx + fx * 0.2, wy - 0.2, wz + fz * 0.2), q, s.set(w * 0.5, 0.26, 0.32)), c.set(flowersC[(i + ci) % flowersC.length]));
       if (!com && setback > 1.3) {
         const mo = off + setback - 0.3;
         B.add('muro', m4.compose(v.set(cx + fx * mo, 0, cz + fz * mo), q, s.set(w + 1, 1.25, 0.2)), (i % 3 === 0) ? c.set(muroC[(i + ci) % muroC.length]) : c.set(wc).offsetHSL(0, 0.06, -0.04));
@@ -331,10 +347,11 @@ export class World {
   buildTrees() {
     const ts = MAP.trees, B = this.batch, N = this.nav, shadowsOn = this.Q.shadows;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color(), e = new THREE.Euler();
-    const flatLam = () => new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true });
+    const flatLam = () => toon({ color: '#ffffff', flatShading: true });
     B.kind('trunk', new THREE.CylinderGeometry(0.12, 0.2, 1, 5).translate(0, 0.5, 0), mat('#8a5a36'), { lod: 2 })
-      .kind('crown', new THREE.IcosahedronGeometry(1, 0), flatLam(), { cast: shadowsOn })
-      .kind('crown2', new THREE.IcosahedronGeometry(1, 0), flatLam(), { lod: 1 });
+      .kind('crown', new THREE.IcosahedronGeometry(1, 1), flatLam(), { lod: 2, far: 4, farGeo: new THREE.IcosahedronGeometry(1, 0) })
+      .kind('crown2', new THREE.IcosahedronGeometry(1, 1), flatLam(), { lod: 1 })
+      .kind('tshadow', new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), shadowMaterial(blobTexture(), 0.36), { lod: 2, receive: false, order: 1 });
     const greens = [['#4caf50', '#5cbf5a', '#3fa34d', '#6cc35e'], ['#2f8f44', '#3a9a4c', '#2f7d3c'], ['#3f7a4c', '#4a875a', '#386d45']];
     ts.forEach(([x, z, k, kind], i) => {
       const th = kind === 2 ? 1.0 * k : 1.9 * k;
@@ -343,6 +360,7 @@ export class World {
       const g = greens[kind][i % greens[kind].length];
       B.add('crown', m4.compose(v.set(x, th + 0.9 * k, z), q, kind === 2 ? s.set(1.6 * k, 0.9 * k, 1.6 * k) : s.set(1.35 * k, 1.25 * k, 1.35 * k)), c.set(g));
       B.add('crown2', m4.compose(v.set(x + 0.35 * k, th + 1.75 * k, z - 0.25 * k), q, s.set(0.75 * k, 0.7 * k, 0.75 * k)), c.set(g).offsetHSL(0.02, 0.05, 0.08));
+      B.add('tshadow', m4.compose(v.set(x + 0.9 * k, 0.097, z + 0.9 * k), q.identity(), s.set(3.6 * k, 1, 3.6 * k)));
     });
     // coqueiros na beira-mar
     const leaves = [];
@@ -352,7 +370,7 @@ export class World {
     }
     leaves.push({ geo: new THREE.IcosahedronGeometry(0.35, 0), m: new THREE.Matrix4().makeTranslation(0, -0.25, 0), color: '#7a5a2a' });
     B.kind('palmT', new THREE.CylinderGeometry(0.13, 0.22, 1, 5).translate(0, 0.5, 0), mat('#a07a52'), { lod: 2 })
-      .kind('palmC', merge(leaves), new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), { cast: shadowsOn });
+      .kind('palmC', merge(leaves), toon({ vertexColors: true, side: THREE.DoubleSide }), { lod: 2, far: 4 });
     let pi = 0;
     for (const r of MAP.roads) {
       if (!/Ferreira Gullar/i.test(r.n)) continue;
@@ -369,6 +387,7 @@ export class World {
             q.setFromEuler(e.set(tilt, 0, -tilt * 0.7)); B.add('palmT', m4.compose(v.set(px, 0, pz), q, s.set(1, hgt, 1)));
             const top = new THREE.Vector3(0, hgt, 0).applyQuaternion(q);
             q.setFromEuler(e.set(tilt, pi * 2.3, -tilt * 0.7)); B.add('palmC', m4.compose(v.set(px + top.x, top.y, pz + top.z), q, s.set(1, 1, 1)));
+            B.add('tshadow', m4.compose(v.set(px + top.x + 0.8, 0.097, pz + top.z + 0.8), q.identity(), s.set(4.5, 1, 4.5)));
             pi++;
           }
           carry = t + 15 - len;
@@ -378,7 +397,7 @@ export class World {
     // arbustos e flores nas praças
     const inPoly = (poly, x, z) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins; } return ins; };
     const r0 = rng(21), flowers = ['#f28bb4', '#f6d55c', '#ffffff', '#ef6f6f', '#c39bf0', '#ffa94d'];
-    B.kind('bush', new THREE.IcosahedronGeometry(1, 0), flatLam(), { lod: 1 });
+    B.kind('bush', new THREE.IcosahedronGeometry(1, 1), flatLam(), { lod: 1 });
     let nb = 0;
     for (const p of MAP.parks) {
       const ring = p.p[0]; let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const [x, z] of ring) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
@@ -403,6 +422,8 @@ export class World {
   }
   addBuilding(id, o) {
     const g = new THREE.Group(); this.scene.add(g); const P = this.P.bind(this);
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(o.w + 8, o.d + 8).rotateX(-Math.PI / 2), shadowMaterial(blobTexture(), 0.5));
+    sh.position.set(o.x + o.w / 2 + 0.3, 0.096, o.z + o.d / 2 + 0.3); sh.renderOrder = 1; this.scene.add(sh);
     P(g, o.w, o.h, o.d, o.wall, o.x, 0, o.z);
     P(g, o.w + 0.6, 0.3, o.d + 0.6, o.roof, o.x - 0.3, o.h, o.z - 0.3);
     const f = o.face, cx = o.x + o.w / 2, cz = o.z + o.d / 2;
@@ -413,11 +434,13 @@ export class World {
     P(g, dw, 2.2, dd, '#3a2a20', fx - dw / 2 + fn[0] * 0.05, 0, fz - dd / 2 + fn[1] * 0.05);
     P(g, fn[0] ? 1.2 : 3, 0.18, fn[0] ? 3 : 1.2, o.roof, fx - (fn[0] ? 0.6 : 1.5) + fn[0] * 0.6, 2.4, fz - (fn[0] ? 1.5 : 0.6) + fn[1] * 0.6);
     const floors = Math.max(1, Math.floor(o.h / 3.2));
+    const wins = [];
     for (let fl = 0; fl < floors; fl++) for (let k = -span / 2 + 1.5; k < span / 2 - 1; k += 3) {
       if (fl === 0 && Math.abs(k) < 2.2) continue;
-      const wx = fx + along[0] * k, wz = fz + along[1] * k;
-      P(g, fn[0] ? 0.08 : 1.6, 1.2, fn[0] ? 1.6 : 0.08, null, wx - (fn[0] ? 0.04 : 0.8) + fn[0] * 0.04, 1.0 + fl * 3.2, wz - (fn[0] ? 0.8 : 0.04) + fn[1] * 0.04, { material: this.winMat, noShadow: true });
+      const wx = fx + along[0] * k, wz = fz + along[1] * k, ww = fn[0] ? 0.08 : 1.6, wd = fn[0] ? 1.6 : 0.08;
+      wins.push({ geo: unit, m: new THREE.Matrix4().compose(new THREE.Vector3(wx + fn[0] * 0.04, 1.6 + fl * 3.2, wz + fn[1] * 0.04), new THREE.Quaternion(), new THREE.Vector3(ww, 1.2, wd)) });
     }
+    if (wins.length) g.add(new THREE.Mesh(merge(wins), this.winMat));
     let ap = [Math.floor(fx + fn[0] * 1.2), Math.floor(fz + fn[1] * 1.2)];
     if (!this.nav.ok(ap[0], ap[1])) ap = this.nav.nearestFree(ap[0], ap[1]) || ap;
     const lbl = makeLabel(`${o.icon} ${o.name}`, { size: 30, scale: 0.02 }); lbl.position.set(cx, o.h + 2.5, cz); this.scene.add(lbl); this.labels.push(lbl);
@@ -426,7 +449,7 @@ export class World {
   buildPark() {
     const S = this.scene, P = this.P.bind(this), poly = MAP.park.p[0];
     const inside = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
-    const hit = this.flat([MAP.park.p], null, 0.03, { material: new THREE.MeshLambertMaterial({ color: '#86cc78' }) });
+    const hit = this.flat([MAP.park.p], null, 0.03, { material: toon({ color: '#86cc78' }) });
     const [x0, z0, x1, z1] = MAP.spots.park, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
     const ap = this.nav.nearestFree(Math.floor(cx), Math.floor(cz)) || [Math.floor(cx), Math.floor(cz)];
     this.register({ id: 'park', name: MAP.park.name, type: 'park', kind: 'zone', approach: ap, icon: '🌳', rect: MAP.spots.park }, hit);
@@ -456,7 +479,7 @@ export class World {
   }
 
   buildApartment() {
-    const S = this.scene, P = this.P.bind(this), { ox, oz, w, d } = APT;
+    const S = this.aptGroup = new THREE.Group(); this.scene.add(S); const _S0 = this.scene, P = this.P.bind(this), { ox, oz, w, d } = APT;
     const base = new THREE.Group(); S.add(base);
     P(base, w, FLOOR_Y, d, '#8d8f94', ox, 0, oz);
     const floor = (c1, r1, cw, rd, col) => P(base, cw, 0.01, rd, col, ox + c1, FLOOR_Y, oz + r1, { noShadow: true });
@@ -496,7 +519,7 @@ export class World {
     F('bedside', 'Criado-mudo', 'decor', 3, 1, 1, 1, [3, 2], g => { PP(g, 0.8, 0.5, 0.8, '#8a5a3b', 0.1, 0, 0.1); PP(g, 0.2, 0.35, 0.2, '#f5e6b0', 0.4, 0.5, 0.4); }, { pick: false });
     F('pc', 'Computador', 'pc', 5, 5, 2, 1, [6, 4], g => {
       PP(g, 2, 0.06, 1, '#c9a073', 0, 0.72, 0); PP(g, 0.08, 0.72, 0.08, '#6b5a47', 0.05, 0, 0.05); PP(g, 0.08, 0.72, 0.08, '#6b5a47', 1.87, 0, 0.05); PP(g, 0.08, 0.72, 0.08, '#6b5a47', 0.05, 0, 0.87); PP(g, 0.08, 0.72, 0.08, '#6b5a47', 1.87, 0, 0.87);
-      PP(g, 0.8, 0.5, 0.05, '#0f1318', 0.2, 0.95, 0.6); PP(g, 0.72, 0.42, 0.02, null, 0.24, 0.99, 0.57, { material: new THREE.MeshLambertMaterial({ color: '#4aa3df', emissive: '#2a6fb0', emissiveIntensity: 0.7 }) }); PP(g, 0.1, 0.2, 0.1, '#333', 0.55, 0.78, 0.6); PP(g, 0.5, 0.03, 0.2, '#ddd', 0.25, 0.78, 0.25);
+      PP(g, 0.8, 0.5, 0.05, '#0f1318', 0.2, 0.95, 0.6); PP(g, 0.72, 0.42, 0.02, null, 0.24, 0.99, 0.57, { material: toon({ color: '#4aa3df', emissive: '#2a6fb0', emissiveIntensity: 0.7 }) }); PP(g, 0.1, 0.2, 0.1, '#333', 0.55, 0.78, 0.6); PP(g, 0.5, 0.03, 0.2, '#ddd', 0.25, 0.78, 0.25);
       PP(g, 0.6, 0.08, 0.6, '#2e3138', 0.2, 0.42, -0.85); PP(g, 0.6, 0.5, 0.08, '#2e3138', 0.2, 0.42, -0.92); PP(g, 0.1, 0.4, 0.1, '#222', 0.45, 0, -0.6);
     }, { seatLocal: [5.5, 4.55, 0, 0.35], pass: false });
     this.nav.block(ox + 5, oz + 4, 1, 1, 0);
@@ -518,7 +541,7 @@ export class World {
     }, { pick: false });
     F('tvunit', 'Rack da TV', 'decor', 10, 5, 3, 1, [11, 6], g => {
       PP(g, 3, 0.45, 1, '#4b3a2c', 0, 0, 0); PP(g, 1.7, 0.95, 0.1, '#0e0e10', 0.6, 0.7, 0.4);
-      this.tvScreen = PP(g, 1.55, 0.8, 0.02, null, 0.67, 0.77, 0.5, { material: new THREE.MeshLambertMaterial({ color: '#1b2a40', emissive: '#1b3a66', emissiveIntensity: 0.25 }) });
+      this.tvScreen = PP(g, 1.55, 0.8, 0.02, null, 0.67, 0.77, 0.5, { material: toon({ color: '#1b2a40', emissive: '#1b3a66', emissiveIntensity: 0.25 }) });
     }, { pick: false });
     F('sofa', 'Sofá', 'sofa', 10, 8, 3, 1, [11, 7], g => {
       PP(g, 3, 0.45, 1, '#6b8fb5', 0, 0, 0); PP(g, 3, 0.55, 0.25, '#5c7ea3', 0, 0.45, 0.75); PP(g, 0.25, 0.3, 0.75, '#5c7ea3', 0, 0.45, 0); PP(g, 0.25, 0.3, 0.75, '#5c7ea3', 2.75, 0.45, 0);
@@ -570,13 +593,14 @@ export class World {
     const night = new THREE.Color('#1c2a5e'), dayC = new THREE.Color('#bfe7ff'), warm = new THREE.Color('#ffb48a');
     const sky = night.clone().lerp(dayC, day).lerp(warm, dusk * 0.55);
     this.scene.background.copy(sky);
-    this.sun.intensity = 0.26 + day * 1.17; this.day = day;
+    this.sun.intensity = 0.4 + day * 1.05; this.day = day;
     this.sun.color.set('#fff3dc').lerp(new THREE.Color('#ffa868'), dusk * 0.75).lerp(new THREE.Color('#8fa2ff'), (1 - day) * 0.65);
-    this.hemi.intensity = 0.55 + day * 0.42; this.hemi.color.copy(sky).lerp(new THREE.Color('#ffffff'), 0.45); this.hemi.groundColor.set('#a3ae7c').lerp(new THREE.Color('#334066'), 1 - day);
+    this.hemi.intensity = 0.78 + day * 0.27; this.hemi.color.copy(sky).lerp(new THREE.Color('#ffffff'), 0.45); this.hemi.groundColor.set('#a3ae7c').lerp(new THREE.Color('#334066'), 1 - day);
     const a = Math.max(0, Math.min(1, (h - 6) / 12.5)) * Math.PI;
     this.sunDir = new THREE.Vector3(-Math.cos(a) * 32, Math.sin(a) * 40 + 12, 16);
     const lit = 1 - day;
-    this.roomLight.intensity = lit * 1.7;
+    if (this.roomGlow) this.roomGlow.opacity = lit * 0.55;
+    tintGround(this.groundTint(day, dusk));
     this.winMat.emissiveIntensity = lit * 1.15; this.lampMat.emissiveIntensity = 0.2 + lit * 2.2; this.lit = lit;
     if (this.poolMat) this.poolMat.opacity = lit * 0.6;
     this.lod[3].visible = lit > 0.03;
@@ -611,7 +635,7 @@ export class World {
     const ss = Math.round(Math.min(320, Math.max(28, z * Math.max(1, this.aspect) * 1.15)) / 4) * 4;
     if (ss !== this.shadowSize) { this.shadowSize = ss; const sc = this.sun.shadow.camera; sc.left = -ss; sc.right = ss; sc.top = ss; sc.bottom = -ss; sc.updateProjectionMatrix(); }
     const k = Math.max(1, Math.min(40, z / 16)); for (const l of this.labels) { l.userData.bs = l.userData.bs || l.scale.clone(); l.scale.set(l.userData.bs.x * k, l.userData.bs.y * k, 1); }
-    this.lod[1].visible = z < 75; this.lod[2].visible = z < 230;
+    this.lod[1].visible = z < 75; this.lod[2].visible = z < 230; this.lod[4].visible = z >= 230; if (this.aptGroup) this.aptGroup.visible = z < 230;
     // sombras: só refaz o mapa quando a câmera/sol mudam ou a cada poucos quadros
     if (this.Q.shadows) {
       this.frameN = (this.frameN || 0) + 1;
@@ -622,7 +646,7 @@ export class World {
     this.sun.position.set(c.target.x + sd.x, sd.y, c.target.z + sd.z); this.sun.target.position.set(c.target.x, 0, c.target.z);
     this.sun.target.updateMatrixWorld();
   }
-  render() { if (this.composer && (this.lit || 0) > 0.05) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
+  render() { this.renderer.render(this.scene, this.camera); }
   // resolução dinâmica: reduz/aumenta a densidade de pixels conforme o tempo de quadro
   adapt(dt) {
     if (dt > 0.2) return;

@@ -1,65 +1,103 @@
 import * as THREE from 'three';
-import { patch } from './fx.js';
+import { patch, toon, merge, blobTexture, shadowMaterial } from './fx.js';
 
-const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const matCache = new Map();
 export function mat(c, extra) {
   const k = c + (extra ? JSON.stringify(extra) : '');
-  if (!matCache.has(k)) matCache.set(k, patch(new THREE.MeshLambertMaterial({ color: c, ...extra })));
+  if (!matCache.has(k)) matCache.set(k, toon({ color: c, ...extra }));
   return matCache.get(k);
 }
 
-export function makeChar(o) {
-  const g = new THREE.Group(), rig = new THREE.Group();
-  g.add(rig);
-  const part = (w, h, d, c, x, y, z, parent = rig) => {
-    const m = new THREE.Mesh(boxGeo, mat(c));
-    m.scale.set(w, h, d); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
-  };
-  const mkLimb = (x, y, w, h, c, hand) => {
-    const l = new THREE.Group(); l.position.set(x, y, 0); rig.add(l);
-    part(w, h, w, c, 0, -h / 2, 0, l);
-    if (hand) part(w, 0.1, w, hand, 0, -h + 0.03, 0, l);
-    return l;
-  };
-  const legL = mkLimb(-0.1, 0.5, 0.17, 0.5, o.pants), legR = mkLimb(0.1, 0.5, 0.17, 0.5, o.pants);
-  part(0.44, 0.5, 0.26, o.shirt, 0, 0.75, 0);
-  const armL = mkLimb(-0.28, 1.0, 0.12, 0.45, o.shirt, o.skin), armR = mkLimb(0.28, 1.0, 0.12, 0.45, o.shirt, o.skin);
-  const head = new THREE.Group(); head.position.y = 1.15; rig.add(head);
-  part(0.32, 0.32, 0.32, o.skin, 0, 0, 0, head);
-  part(0.34, 0.12, 0.34, o.hair, 0, 0.19, 0, head);
-  part(0.34, 0.22, 0.1, o.hair, 0, 0.04, -0.14, head);
-  if (o.long) { part(0.34, 0.3, 0.1, o.hair, 0, -0.08, -0.15, head); part(0.05, 0.3, 0.12, o.hair, -0.17, -0.06, -0.08, head); part(0.05, 0.3, 0.12, o.hair, 0.17, -0.06, -0.08, head); }
-  part(0.05, 0.05, 0.02, '#1b1b1b', -0.08, 0.02, 0.165, head);
-  part(0.05, 0.05, 0.02, '#1b1b1b', 0.08, 0.02, 0.165, head);
-  const shirtMeshes = [];
-  rig.traverse(m => { if (m.isMesh && m.material.color.getStyle && m.material === mat(o.shirt)) shirtMeshes.push(m); });
-  const bubble = makeBubble(); bubble.position.y = 1.95; g.add(bubble);
-  return { group: g, rig, legL, legR, armL, armR, head, bubble, shirtMeshes };
+// geometrias compartilhadas por todos os personagens (estilo "chibi" arredondado)
+const G = {};
+function geos() {
+  if (G.head) return G;
+  const M = (x, y, z, sx = 1, sy = 1, sz = 1, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, rz)), new THREE.Vector3(sx, sy, sz));
+  G.head = new THREE.SphereGeometry(0.27, 18, 14);
+  G.hairTop = new THREE.SphereGeometry(0.288, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.4);
+  G.hairBack = new THREE.SphereGeometry(0.288, 14, 8, Math.PI * 0.08, Math.PI * 0.84, Math.PI * 0.25, Math.PI * 0.45).rotateY(Math.PI);
+  G.tuft = new THREE.SphereGeometry(0.12, 10, 6);
+  G.long = new THREE.CapsuleGeometry(0.2, 0.24, 4, 12);
+  G.lock = new THREE.CapsuleGeometry(0.075, 0.24, 4, 8);
+  G.torso = new THREE.CapsuleGeometry(0.2, 0.2, 5, 14);
+  G.hips = new THREE.CylinderGeometry(0.19, 0.175, 0.14, 14);
+  G.leg = new THREE.CapsuleGeometry(0.085, 0.2, 4, 10);
+  G.shoe = new THREE.SphereGeometry(0.1, 12, 8);
+  G.sleeve = new THREE.CapsuleGeometry(0.068, 0.18, 4, 10);
+  G.hand = new THREE.SphereGeometry(0.075, 10, 8);
+  const eye = new THREE.SphereGeometry(0.042, 12, 10), shine = new THREE.SphereGeometry(0.014, 6, 5);
+  G.eyes = merge([
+    { geo: eye, m: M(-0.095, 0, 0, 0.85, 1.2, 0.5), color: '#2b2b3a' }, { geo: eye, m: M(0.095, 0, 0, 0.85, 1.2, 0.5), color: '#2b2b3a' },
+    { geo: shine, m: M(-0.083, 0.02, 0.02), color: '#ffffff' }, { geo: shine, m: M(0.107, 0.02, 0.02), color: '#ffffff' },
+  ]);
+  const cheek = new THREE.SphereGeometry(0.05, 10, 8);
+  G.face = merge([
+    { geo: cheek, m: M(-0.155, -0.065, 0.205, 1, 0.6, 0.35), color: '#ff9fb2' }, { geo: cheek, m: M(0.155, -0.065, 0.205, 1, 0.6, 0.35), color: '#ff9fb2' },
+    { geo: new THREE.TorusGeometry(0.045, 0.013, 6, 14, Math.PI), m: M(0, -0.075, 0.252, 1, 0.8, 1, Math.PI), color: '#8a3b45' },
+  ]);
+  G.blob = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  G.faceMat = toon({ vertexColors: true });
+  G.shoeMat = mat('#3b3f52');
+  G.blobMat = shadowMaterial(blobTexture(), 0.34);
+  return G;
 }
 
-export function setShirt(c, color) { c.shirtMeshes.forEach(m => { m.material = mat(color); }); }
+export function makeChar(o) {
+  const g0 = geos();
+  const g = new THREE.Group(), rig = new THREE.Group(); g.add(rig);
+  const shirtMat = toon({ color: o.shirt });
+  const add = (geo, material, parent, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); m.scale.set(sx, sy, sz); parent.add(m); return m; };
+  // pernas (pivô no quadril)
+  const leg = x => { const l = new THREE.Group(); l.position.set(x, 0.45, 0); rig.add(l); add(g0.leg, mat(o.pants), l, 0, -0.19, 0); add(g0.shoe, g0.shoeMat, l, 0, -0.4, 0.035, 1, 0.55, 1.4); return l; };
+  const legL = leg(-0.095), legR = leg(0.095);
+  add(g0.hips, mat(o.pants), rig, 0, 0.5, 0, 1, 1, 0.85);
+  add(g0.torso, shirtMat, rig, 0, 0.72, 0, 1, 1, 0.82);
+  // braços (pivô no ombro)
+  const arm = (x, side) => { const a = new THREE.Group(); a.position.set(x, 0.93, 0); rig.add(a); add(g0.sleeve, shirtMat, a, side * 0.01, -0.13, 0); add(g0.hand, mat(o.skin), a, side * 0.015, -0.31, 0); return a; };
+  const armL = arm(-0.255, -1), armR = arm(0.255, 1);
+  // cabeça
+  const head = new THREE.Group(); head.position.y = 1.2; rig.add(head);
+  add(g0.head, mat(o.skin), head);
+  const hm = mat(o.hair);
+  add(g0.hairTop, hm, head, 0, 0.035, -0.02);
+  add(g0.hairBack, hm, head, 0, 0.02, -0.01);
+  if (o.long) {
+    add(g0.long, hm, head, 0, -0.14, -0.15, 1.18, 1, 0.55);
+    add(g0.lock, hm, head, -0.235, -0.12, 0.02, 1, 1, 0.8); add(g0.lock, hm, head, 0.235, -0.12, 0.02, 1, 1, 0.8);
+  }
+  else add(g0.tuft, hm, head, 0.04, 0.235, 0.11, 1.5, 0.55, 0.9);
+  const eyes = add(g0.eyes, g0.faceMat, head, 0, 0.025, 0.235);
+  add(g0.face, g0.faceMat, head);
+  // sombrinha no chão
+  const blob = add(g0.blob, g0.blobMat, g, 0, 0.03, 0, 0.95, 1, 0.95); blob.renderOrder = 1;
+  const bubble = makeBubble(); bubble.position.y = 1.95; g.add(bubble);
+  return { group: g, rig, legL, legR, armL, armR, head, eyes, blob, bubble, shirtMat, blinkOff: Math.random() * 4 };
+}
+
+export function setShirt(c, color) { c.shirtMat.color.set(color); }
 
 export function applyPose(c, pose, t) {
-  const { rig, legL, legR, armL, armR } = c;
-  rig.rotation.set(0, 0, 0); rig.position.set(0, 0, 0);
-  legL.rotation.set(0, 0, 0); legR.rotation.set(0, 0, 0); armL.rotation.set(0, 0, 0); armR.rotation.set(0, 0, 0);
+  const { rig, legL, legR, armL, armR, head } = c;
+  rig.rotation.set(0, 0, 0); rig.position.set(0, 0, 0); head.rotation.set(0, 0, 0);
+  legL.rotation.set(0, 0, 0); legR.rotation.set(0, 0, 0); armL.rotation.set(0, 0, 0.08); armR.rotation.set(0, 0, -0.08);
   const s = Math.sin(t * 9) * 0.7;
+  let closed = ((t + c.blinkOff) % 3.7) < 0.13;
   switch (pose) {
-    case 'walk': legL.rotation.x = s; legR.rotation.x = -s; armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8; rig.position.y = Math.abs(Math.sin(t * 9)) * 0.04; break;
-    case 'run': { const r = Math.sin(t * 14) * 1.0; legL.rotation.x = r; legR.rotation.x = -r; armL.rotation.x = -r; armR.rotation.x = r; rig.position.y = Math.abs(Math.sin(t * 14)) * 0.08; break; }
-    case 'sit': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.23; armL.rotation.x = armR.rotation.x = -0.5; break;
-    case 'tv': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.23; armL.rotation.x = armR.rotation.x = -0.3; break;
-    case 'work': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.23; armL.rotation.x = -1.2 + Math.sin(t * 8) * 0.12; armR.rotation.x = -1.2 + Math.cos(t * 7) * 0.12; break;
-    case 'sleep': rig.rotation.x = -Math.PI / 2; rig.position.y = 0.16; break;
-    case 'phone': armR.rotation.x = -2.3; armR.rotation.z = -0.2; break;
+    case 'walk': legL.rotation.x = s; legR.rotation.x = -s; armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8; rig.position.y = Math.abs(Math.sin(t * 9)) * 0.045; head.rotation.z = Math.sin(t * 4.5) * 0.04; break;
+    case 'run': { const r = Math.sin(t * 14) * 1.0; legL.rotation.x = r; legR.rotation.x = -r; armL.rotation.x = -r; armR.rotation.x = r; rig.position.y = Math.abs(Math.sin(t * 14)) * 0.09; break; }
+    case 'sit': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.2; armL.rotation.x = armR.rotation.x = -0.5; break;
+    case 'tv': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.2; armL.rotation.x = armR.rotation.x = -0.3; head.rotation.z = Math.sin(t * 0.7) * 0.05; break;
+    case 'work': legL.rotation.x = legR.rotation.x = -1.5; rig.position.y = -0.2; armL.rotation.x = -1.2 + Math.sin(t * 8) * 0.12; armR.rotation.x = -1.2 + Math.cos(t * 7) * 0.12; head.rotation.x = 0.12; break;
+    case 'sleep': rig.rotation.x = -Math.PI / 2; rig.position.y = 0.16; closed = true; break;
+    case 'phone': armR.rotation.x = -2.3; armR.rotation.z = -0.2; head.rotation.z = 0.12; break;
     case 'exercise': { const e = Math.sin(t * 6); armL.rotation.x = armR.rotation.x = -Math.PI * 0.6 + e * 1.0; rig.position.y = Math.abs(e) * 0.12; legL.rotation.x = legR.rotation.x = e * 0.3; break; }
-    case 'shower': armL.rotation.x = armR.rotation.x = -2.7; rig.position.y = 0; break;
+    case 'shower': armL.rotation.x = armR.rotation.x = -2.7; closed = true; break;
     case 'eat': armR.rotation.x = -1.2 + Math.sin(t * 5) * 0.7; break;
-    case 'talk': armL.rotation.x = -0.6 + Math.sin(t * 4) * 0.5; armR.rotation.x = -0.6 + Math.cos(t * 3.4) * 0.5; break;
+    case 'talk': armL.rotation.x = -0.6 + Math.sin(t * 4) * 0.5; armR.rotation.x = -0.6 + Math.cos(t * 3.4) * 0.5; head.rotation.z = Math.sin(t * 3) * 0.08; break;
     case 'clean': armL.rotation.x = armR.rotation.x = -0.9 + Math.sin(t * 7) * 0.5; rig.rotation.x = 0.15; break;
-    default: armL.rotation.z = 0.05; armR.rotation.z = -0.05; rig.position.y = Math.sin(t * 2) * 0.008;
+    default: rig.position.y = Math.sin(t * 2) * 0.008; head.rotation.z = Math.sin(t * 0.9 + c.blinkOff) * 0.035;
   }
+  c.eyes.scale.y = closed ? 0.12 : 1;
 }
 
 // ---------- balões de emoji e rótulos ----------
@@ -132,8 +170,10 @@ export class Walker {
   }
   sync() {
     const g = this.c.group;
-    g.position.set(this.x, this.seatY !== null ? this.seatY : this.world.groundY(this.x, this.z), this.z);
+    const gy = this.world.groundY(this.x, this.z), y = this.seatY !== null ? this.seatY : gy;
+    g.position.set(this.x, y, this.z);
     g.rotation.y = this.rot; g.visible = this.visible;
+    this.c.blob.position.y = gy - y + 0.03; this.c.blob.visible = this.pose !== 'sleep';
   }
   render(t, speedMul = 1) {
     this.sync();

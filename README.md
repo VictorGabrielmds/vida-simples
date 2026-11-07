@@ -12,18 +12,27 @@ Um simulador de vida em **3D com câmera ortográfica** (estilo The Sims, porém
 - **Celular** 📱 (botão no topo ou `P`): ligar/mandar mensagem para a Júlia, chamá-la para sair, pedir delivery.
 - **🤖 Autonomia:** deixe o personagem viver sozinho e assista.
 - O progresso é **salvo automaticamente** no navegador (localStorage).
-- **Gráficos** (menu ☰ → 🎨): *Automático* (padrão: Médio no PC, Baixo no celular), *Alto* (sombras suaves e brilho noturno), *Médio* ou *Baixo* (sem sombras). A resolução se ajusta sozinha para manter o jogo fluido.
+- **Gráficos** (menu ☰ → 🎨): *Automático* (padrão: Médio no PC, Baixo no celular), *Alto* (mais nítido e mais carros), *Médio* ou *Baixo* (o mais leve). A resolução se ajusta sozinha para manter o jogo fluido.
 
-## Desempenho
+## Estilo e desempenho
 
-A cidade tem cerca de 4.600 casas, 7.700 árvores, 850 coqueiros e 1.600 postes. O jogo continua leve por quatro motivos:
+O visual é de **cidadezinha de brinquedo**:
 
-- **Blocos de 240 m:** tudo é desenhado com `InstancedMesh` agrupado em blocos (`js/batch.js`), então só os blocos visíveis vão para a placa de vídeo, inclusive no mapa de sombras.
-- **Nível de detalhe por zoom:** janelas, portas, muros, caixas d'água, arbustos e faixas somem de longe, e troncos, postes e nomes de rua somem na visão do mapa.
-- **Sombras sob demanda:** o mapa de sombras só é refeito quando a câmera ou o sol mudam, ou a cada poucos quadros, e carros e objetos pequenos não projetam sombra.
-- **Resolução dinâmica:** a densidade de pixels cai sozinha se o quadro passar de ~24 ms.
+- personagens arredondados, de cabeça grande, olhos que piscam, bochechas e sorriso;
+- sombreamento cartoon (*toon*);
+- casas coloridas com telhado de duas ou quatro águas, toldo, floreira, muro e caixa d'água;
+- sombrinhas suaves desenhadas sob personagens, casas, árvores e carros.
 
-Na rua, um quadro passou de cerca de 3,6 milhões para cerca de 60 mil triângulos.
+Não há sombras em tempo real nem pós-processamento: o jogo foi pensado para rodar bem até em placa de vídeo integrada (testado numa Intel UHD 620). Para isso:
+
+- **Instâncias em blocos de 240 m** (`js/batch.js`): de perto só os blocos visíveis são desenhados, e de longe a cidade inteira vira poucas malhas grandes (cerca de 140 draw calls na visão do mapa).
+- **Nível de detalhe por zoom:** janelas, portas, muros, arbustos e faixas somem de longe, e as copas das árvores ficam mais simples.
+- **Chão sem cálculo de luz:** terra, grama, calçada e asfalto recebem a cor pronta conforme a hora do dia.
+- **Ordem de desenho de cima para baixo:** faixas, asfalto, calçada, grama, terra e por último água, para a placa não pintar o mesmo pixel várias vezes.
+- **Luz noturna desenhada:** manchas de luz quente nos postes e no apartamento, em vez de luzes de verdade.
+- **Resolução dinâmica.**
+
+Tempo de GPU medido na Intel UHD 620 (1024×768): rua de dia ~10 ms, à noite ~12 ms, mapa inteiro ~13 ms.
 
 ## O que já existe
 
@@ -39,7 +48,7 @@ Na rua, um quadro passou de cerca de 3,6 milhões para cerca de 60 mil triângul
 | **Outros NPCs** | Marcos (colega), Dona Lúcia (senhora), Seu Antônio, Camila e Rafa — cada um com horários, necessidades e emoções |
 | **Cidade** | O bairro São Francisco (São Luís/MA) **em escala real** — veja [Mapa](#mapa) |
 | **Eventos** | Vazamento, vizinho barulhento, mãe ligando, convite do Marcos, elogio do chefe, cobrança da senhoria... |
-| **Ciclo dia/noite** | Iluminação com tone mapping, sombras, sombras de nuvens passando, brilho (bloom) à noite, janelas acesas e poças de luz dos postes |
+| **Ciclo dia/noite** | Céu e cores que mudam com a hora, sombras de nuvens passando, janelas acesas e poças de luz dos postes à noite |
 | **Ambientação** | Água animada com espuma na orla e faixa de areia, coqueiros na Av. Ferreira Gullar, praças com flores, casas coloridas com muro, portão e caixa d'água, carros circulando pelas ruas reais e faixas de pedestre |
 | **Som** | Som ambiente sintetizado no navegador (mar perto da orla, vento, trânsito, pássaros de dia, grilos à noite) e efeitos na interface. Liga e desliga em 🔊 |
 
@@ -74,11 +83,12 @@ js/world.js         cena 3D, cidade, apartamento, luz
 js/sim.js           simulação: tempo, necessidades, ações, NPCs, eventos
 js/char.js          personagens low-poly, poses, balões de emoção
 js/nav.js           A* na grade de 1 m (janela + caminho suavizado)
+js/batch.js         instâncias por bloco + versão "de longe"
 js/ui.js            HUD, menus, lojas
 js/data.js          constantes e dados
 js/mapdata.js       mapa do bairro (gerado)
 tools/build_map.py  gerador do mapa
-vendor/             three.js (+ addons de pós-processamento)
+vendor/             three.js
 js/fx.js            efeitos: água, nuvens, texturas, areia/espuma
 js/traffic.js       carros nas ruas
 js/audio.js         som ambiente sintetizado

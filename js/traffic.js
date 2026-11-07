@@ -1,6 +1,6 @@
 // Carros circulando pelas ruas reais (decorativo: anda em tempo real, mão direita)
 import * as THREE from 'three';
-import { gradBox } from './fx.js';
+import { gradBox, toon, blobTexture, shadowMaterial } from './fx.js';
 
 const DRIVE = new Set(['trunk', 'primary', 'secondary', 'tertiary', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'residential', 'unclassified']);
 const MAIN = new Set(['trunk', 'primary', 'secondary', 'tertiary']);
@@ -29,15 +29,16 @@ export class Traffic {
     }
     // malhas instanciadas
     const N = this.cars.length;
-    const white = new THREE.MeshLambertMaterial({ color: '#ffffff', vertexColors: true });
+    const white = toon({ color: '#ffffff', vertexColors: true });
     this.body = new THREE.InstancedMesh(gradBox(0.55), white, N);
-    this.cabin = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: '#2b3a4a' }), N);
-    this.wheels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: '#1d1d1f' }), N);
+    this.cabin = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), toon({ color: '#2b3a4a' }), N);
+    this.wheels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), toon({ color: '#1d1d1f' }), N);
     this.lights = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), lampMat, N);
-    this.tail = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.tailMat = new THREE.MeshLambertMaterial({ color: '#7a1010', emissive: '#ff2a2a', emissiveIntensity: 0 }), N);
+    this.tail = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.tailMat = toon({ color: '#7a1010', emissive: '#ff2a2a', emissiveIntensity: 0 }), N);
+    this.shadow = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), shadowMaterial(blobTexture(), 0.38), N); this.shadow.renderOrder = 1;
     const c = new THREE.Color();
     this.cars.forEach((car, i) => this.body.setColorAt(i, c.set(COLORS[i % COLORS.length])));
-    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
+    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail, this.shadow]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
     this.m4 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.e = new THREE.Euler(); this.v = new THREE.Vector3(); this.sv = new THREE.Vector3();
     this.update(0);
   }
@@ -72,8 +73,9 @@ export class Traffic {
       this.wheels.setMatrixAt(i, m4.compose(v.set(px, 0.08, pz), q, sv.set(1.92, 0.42, 3.0)));
       this.lights.setMatrixAt(i, m4.compose(v.set(px + fx * 2.06, 0.62, pz + fz * 2.06), q, sv.set(1.5, 0.16, 0.06)));
       this.tail.setMatrixAt(i, m4.compose(v.set(px - fx * 2.06, 0.66, pz - fz * 2.06), q, sv.set(1.5, 0.14, 0.06)));
+      this.shadow.setMatrixAt(i, m4.compose(v.set(px + 0.5, 0.097, pz + 0.5), q, sv.set(2.9, 1, 5.4)));
     });
-    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail]) m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail, this.shadow]) m.instanceMatrix.needsUpdate = true;
     this.tailMat.emissiveIntensity = 0.4 + night * 1.6;
   }
 }
