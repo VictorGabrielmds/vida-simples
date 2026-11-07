@@ -51,7 +51,7 @@ export class Nav {
     const WW = x1 - x0 + 1, HH = z1 - z0 + 1, N = WW * HH, B = this.blocked, MW = this.w;
     this.ensure(N);
     const gS = this.gS, from = this.from, st = this.st; st.fill(0, 0, N);
-    const hk = 1.25; // heurística levemente gulosa: muito mais rápida, caminho quase ótimo
+    const hk = 1.5; // heurística levemente gulosa: muito mais rápida, caminho quase ótimo
     const hx = g[0] - x0, hz = g[1] - z0;
     const h = (x, z) => { const dx = Math.abs(x - hx), dz = Math.abs(z - hz); return hk * (dx + dz - 0.586 * Math.min(dx, dz)); };
     const hf = [], hi = [];

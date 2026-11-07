@@ -12,6 +12,18 @@ Um simulador de vida em **3D com câmera ortográfica** (estilo The Sims, porém
 - **Celular** 📱 (botão no topo ou `P`): ligar/mandar mensagem para a Júlia, chamá-la para sair, pedir delivery.
 - **🤖 Autonomia:** deixe o personagem viver sozinho e assista.
 - O progresso é **salvo automaticamente** no navegador (localStorage).
+- **Gráficos** (menu ☰ → 🎨): *Automático* (padrão: Médio no PC, Baixo no celular), *Alto* (sombras suaves e brilho noturno), *Médio* ou *Baixo* (sem sombras). A resolução se ajusta sozinha para manter o jogo fluido.
+
+## Desempenho
+
+A cidade tem cerca de 4.600 casas, 7.700 árvores, 850 coqueiros e 1.600 postes. O jogo continua leve por quatro motivos:
+
+- **Blocos de 240 m:** tudo é desenhado com `InstancedMesh` agrupado em blocos (`js/batch.js`), então só os blocos visíveis vão para a placa de vídeo, inclusive no mapa de sombras.
+- **Nível de detalhe por zoom:** janelas, portas, muros, caixas d'água, arbustos e faixas somem de longe, e troncos, postes e nomes de rua somem na visão do mapa.
+- **Sombras sob demanda:** o mapa de sombras só é refeito quando a câmera ou o sol mudam, ou a cada poucos quadros, e carros e objetos pequenos não projetam sombra.
+- **Resolução dinâmica:** a densidade de pixels cai sozinha se o quadro passar de ~24 ms.
+
+Na rua, um quadro passou de cerca de 3,6 milhões para cerca de 60 mil triângulos.
 
 ## O que já existe
 

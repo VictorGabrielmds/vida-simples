@@ -29,6 +29,8 @@ document.getElementById('btnNew').addEventListener('click', () => start(false));
 document.getElementById('btnContinue').addEventListener('click', () => start(true));
 sim.newGame(false); // estado inicial para o fundo da tela inicial (não apaga o save)
 sim.paused = true;
+// depois de trocar a qualidade gráfica a página recarrega e continua o jogo sozinha
+try { if (sessionStorage.getItem('vida-simples-continuar') && hasSave) { sessionStorage.removeItem('vida-simples-continuar'); start(true); } } catch (e) { /* ok */ }
 
 // ---------- entrada ----------
 let drag = null, down = null;
@@ -36,6 +38,7 @@ const keys = new Set();
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
   if (!started) return;
+  sound.ensure();
   down = { x: e.clientX, y: e.clientY, moved: false, button: e.button, tx: world.cam.target.x, tz: world.cam.target.z };
   canvas.setPointerCapture(e.pointerId);
 });
@@ -111,6 +114,7 @@ function frame(now) {
     sim.advance(dt);
   } else { sim.timeSec += dt; sim.render(dt); world.cam.yawT += dt * 0.08; world.cam.yaw = world.cam.yawT; }
   const running = !started || !(sim.paused || sim.modalOpen > 0);
+  world.adapt((now - (frame.prev || now)) / 1000); frame.prev = now;
   world.tick(dt, running);
   world.updateCamera(dt, started ? (sim.player.visible ? { x: sim.player.x, z: sim.player.z } : { x: world.objs[sim.insideId].center[0], z: world.objs[sim.insideId].center[2] }) : { x: APT.ox + 9, z: APT.oz + 6 });
   world.render();

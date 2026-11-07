@@ -1,4 +1,6 @@
 import { NEEDS, NEED_ICON, NEED_LABEL, ITEMS, ITEM_QTY, FURNITURE, WEEKDAYS, NPC_DEFS, fmt, hhmm, clamp } from './data.js';
+import { gfxPref, setGfxPref } from './world.js';
+const GFX_LABEL = { auto: 'Automático', alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
 
 const $ = (s, r = document) => r.querySelector(s);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
@@ -42,7 +44,7 @@ export class UI {
     $('#statBtn').addEventListener('click', () => { $('#left').classList.toggle('show'); });
     $('#mapBtn').addEventListener('click', () => sim.world.toggleMap());
     $('#soundBtn').addEventListener('click', () => { if (!this.sound) return; const on = this.sound.toggle(); $('#soundBtn').textContent = on ? '🔊' : '🔇'; });
-    this.root.addEventListener('click', e => { if (e.target.closest('button') && e.target.id !== 'soundBtn') this.sound && this.sound.click(); });
+    this.root.addEventListener('click', e => { if (e.target.closest('button') && e.target.id !== 'soundBtn' && this.sound) { this.sound.ensure(); this.sound.click(); } });
     this.refreshTabs(); this.setSpeed(1);
     this.leftBuilt = false;
   }
@@ -104,8 +106,19 @@ export class UI {
     const sim = this.sim, r = $('#menuBtn').getBoundingClientRect();
     this.menu('Menu', '', [
       { icon: '💾', label: 'Salvar agora', sub: 'O jogo também salva a cada dia', fn: () => { sim.save(); this.hideMenu(); this.toast('Jogo salvo 💾'); } },
+      { icon: '🎨', label: `Gráficos: ${GFX_LABEL[gfxPref()]}`, sub: `Agora: ${sim.world.Q.label} · resolução ${Math.round(sim.world.dpr * 100)}%`, fn: () => { this.hideMenu(); this.graphicsMenu(r); } },
       { icon: '❓', label: 'Como jogar', sub: '', fn: () => { this.hideMenu(); this.help(); } },
       { icon: '🔄', label: 'Novo jogo', sub: 'Apaga o progresso salvo', fn: () => { this.hideMenu(); this.confirm('Começar um novo jogo? O progresso salvo será apagado.', () => { sim.newGame(); this.toast('Novo jogo iniciado!'); }); } },
+    ], r.left - 200, r.bottom + 6);
+  }
+  graphicsMenu(r) {
+    const cur = gfxPref(), pick = v => { if (v === cur) return; setGfxPref(v); this.sim.save(); try { sessionStorage.setItem('vida-simples-continuar', '1'); } catch (e) { /* ok */ } location.reload(); };
+    const opt = (v, icon, sub) => ({ icon, label: `${GFX_LABEL[v]}${v === cur ? '  ✓' : ''}`, sub, fn: () => pick(v) });
+    this.menu('🎨 Qualidade gráfica', 'O jogo salva e recarrega para aplicar', [
+      opt('auto', '✨', 'Recomendado: ajusta a resolução sozinho'),
+      opt('alto', '🌟', 'Sombras suaves e brilho noturno (bloom)'),
+      opt('medio', '⚖️', 'Sombras normais, sem bloom'),
+      opt('baixo', '🐢', 'Sem sombras, menos carros, mais leve'),
     ], r.left - 200, r.bottom + 6);
   }
 

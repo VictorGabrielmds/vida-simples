@@ -37,7 +37,7 @@ export class Traffic {
     this.tail = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), this.tailMat = new THREE.MeshLambertMaterial({ color: '#7a1010', emissive: '#ff2a2a', emissiveIntensity: 0 }), N);
     const c = new THREE.Color();
     this.cars.forEach((car, i) => this.body.setColorAt(i, c.set(COLORS[i % COLORS.length])));
-    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail]) { m.castShadow = m === this.body || m === this.cabin; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
+    for (const m of [this.body, this.cabin, this.wheels, this.lights, this.tail]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
     this.m4 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.e = new THREE.Euler(); this.v = new THREE.Vector3(); this.sv = new THREE.Vector3();
     this.update(0);
   }
