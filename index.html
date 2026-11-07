@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Vida Simples — simulador de vida 3D</title>
+  <meta name="description" content="Um simulador de vida em 3D com câmera ortográfica: aluguel, trabalho, namorada, necessidades e emoções.">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="ui"></div>
+  <div id="intro">
+    <div class="card">
+      <div class="logo">🏠</div>
+      <h1>Vida Simples</h1>
+      <p>Um simulador de vida 3D em vista ortográfica. Pague o aluguel, vá trabalhar, cuide da sua namorada e das suas necessidades, e tente ser feliz na rotina de todo dia.</p>
+      <div class="intro-btns">
+        <button id="btnNew" class="mbtn pri">▶ Novo jogo</button>
+        <button id="btnContinue" class="mbtn hidden">💾 Continuar</button>
+      </div>
+      <small>Clique em objetos, prédios e pessoas • Arraste para mover a câmera • Q/E giram • Espaço pausa</small>
+    </div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
